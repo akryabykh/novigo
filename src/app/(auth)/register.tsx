@@ -4,195 +4,118 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { qk } from '../../core/query';
-import { emailSchema, nameSchema, otpSchema, passwordSchema } from '../../core/validation';
+import { emailSchema, nameSchema, passwordSchema } from '../../core/validation';
 import { useAuth } from '../../features/auth/auth-provider';
-import { Button, Input, Logo, ProgressBar, Screen, Text } from '../../ui/components';
+import { Button, Input, Logo, Screen, Text } from '../../ui/components';
 import { spacing } from '../../ui/theme';
 
-type Step = 'email' | 'code' | 'password' | 'name';
-const ORDER: Step[] = ['email', 'code', 'password', 'name'];
-
 export default function RegisterScreen() {
-  const { sendSignupCode, verifySignupCode, setPassword, completeProfile, user } = useAuth();
+  const { signUpWithPassword, completeProfile, user } = useAuth();
   const router = useRouter();
   const qc = useQueryClient();
 
-  const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [password, setPassword2] = useState('');
+  const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [middleName, setMiddleName] = useState('');
-
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const run = async (fn: () => Promise<void>) => {
+  const submit = async () => {
     setError(null);
+
+    const e = emailSchema.safeParse(email);
+    if (!e.success) return setError(e.error.issues[0].message);
+    const p = passwordSchema.safeParse(password);
+    if (!p.success) return setError(p.error.issues[0].message);
+    if (password !== confirm) return setError('Пароли не совпадают');
+    const n = nameSchema.safeParse({ firstName, lastName, middleName });
+    if (!n.success) return setError(n.error.issues[0].message);
+
     setLoading(true);
     try {
-      await fn();
-    } catch (e: any) {
-      setError(e?.message ?? 'Что-то пошло не так');
+      await signUpWithPassword(email, password);
+      await completeProfile({ firstName, lastName, middleName });
+      if (user?.id) qc.invalidateQueries({ queryKey: qk.profile(user.id) });
+      router.replace('/(app)');
+    } catch (err: any) {
+      const msg = String(err?.message ?? '');
+      if (msg.toLowerCase().includes('already') || msg.includes('registered')) {
+        setError('Этот email уже зарегистрирован — войдите.');
+      } else {
+        setError(msg || 'Не удалось создать аккаунт');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const onEmail = () => {
-    const p = emailSchema.safeParse(email);
-    if (!p.success) return setError(p.error.issues[0].message);
-    run(async () => {
-      await sendSignupCode(email);
-      setStep('code');
-    });
-  };
-
-  const onCode = () => {
-    const p = otpSchema.safeParse(code);
-    if (!p.success) return setError(p.error.issues[0].message);
-    run(async () => {
-      await verifySignupCode(email, code);
-      setStep('password');
-    });
-  };
-
-  const onPassword = () => {
-    const p = passwordSchema.safeParse(password);
-    if (!p.success) return setError(p.error.issues[0].message);
-    if (password !== confirm) return setError('Пароли не совпадают');
-    run(async () => {
-      await setPassword(password);
-      setStep('name');
-    });
-  };
-
-  const onName = () => {
-    const p = nameSchema.safeParse({ firstName, lastName, middleName });
-    if (!p.success) return setError(p.error.issues[0].message);
-    run(async () => {
-      await completeProfile({ firstName, lastName, middleName });
-      if (user?.id) qc.invalidateQueries({ queryKey: qk.profile(user.id) });
-      router.replace('/(app)');
-    });
-  };
-
-  const idx = ORDER.indexOf(step);
-
   return (
     <Screen>
-      <View style={{ paddingTop: spacing['2xl'], gap: spacing.md }}>
-        <Logo size={30} />
-        <ProgressBar progress={(idx + 1) / ORDER.length} />
+      <View style={{ paddingTop: spacing['2xl'], gap: spacing.sm }}>
+        <Logo size={34} />
+        <Text variant="title">Создать аккаунт</Text>
+        <Text variant="body" tone="muted">
+          Пара полей — и можно ставить первые цели.
+        </Text>
       </View>
 
-      {step === 'email' && (
-        <View style={{ gap: spacing.lg }}>
-          <Header title="Создать аккаунт" subtitle="Начнём с email — пришлём код подтверждения." />
-          <Input
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="you@example.com"
-            autoFocus
-          />
-          <ErrorText error={error} />
-          <Button title="Отправить код" onPress={onEmail} loading={loading} />
-        </View>
-      )}
+      <View style={{ gap: spacing.lg, marginTop: spacing.md }}>
+        <Input
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          placeholder="you@example.com"
+        />
+        <Input
+          label="Пароль"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          placeholder="минимум 8 символов"
+        />
+        <Input
+          label="Повторите пароль"
+          value={confirm}
+          onChangeText={setConfirm}
+          secureTextEntry
+          placeholder="••••••••"
+        />
+        <Input label="Имя" value={firstName} onChangeText={setFirstName} placeholder="Артём" />
+        <Input
+          label="Фамилия"
+          value={lastName}
+          onChangeText={setLastName}
+          placeholder="(необязательно)"
+        />
+        <Input
+          label="Отчество"
+          value={middleName}
+          onChangeText={setMiddleName}
+          placeholder="(необязательно)"
+        />
 
-      {step === 'code' && (
-        <View style={{ gap: spacing.lg }}>
-          <Header title="Введите код" subtitle={`Мы отправили 6 цифр на ${email}.`} />
-          <Input
-            label="Код из письма"
-            value={code}
-            onChangeText={setCode}
-            keyboardType="number-pad"
-            maxLength={6}
-            placeholder="123456"
-            autoFocus
-          />
-          <ErrorText error={error} />
-          <Button title="Подтвердить" onPress={onCode} loading={loading} />
-          <Text
-            variant="label"
-            tone="accent"
-            style={{ textAlign: 'center' }}
-            onPress={() => run(async () => sendSignupCode(email))}>
-            Отправить код снова
+        {error ? (
+          <Text variant="caption" tone="danger">
+            {error}
           </Text>
-        </View>
-      )}
+        ) : null}
 
-      {step === 'password' && (
-        <View style={{ gap: spacing.lg }}>
-          <Header title="Придумайте пароль" subtitle="Минимум 8 символов." />
-          <Input
-            label="Пароль"
-            value={password}
-            onChangeText={setPassword2}
-            secureTextEntry
-            placeholder="••••••••"
-            autoFocus
-          />
-          <Input
-            label="Повторите пароль"
-            value={confirm}
-            onChangeText={setConfirm}
-            secureTextEntry
-            placeholder="••••••••"
-          />
-          <ErrorText error={error} />
-          <Button title="Далее" onPress={onPassword} loading={loading} />
-        </View>
-      )}
+        <Button title="Создать аккаунт" onPress={submit} loading={loading} />
+      </View>
 
-      {step === 'name' && (
-        <View style={{ gap: spacing.lg }}>
-          <Header title="Как вас зовут?" subtitle="Имя обязательно, остальное — по желанию." />
-          <Input label="Имя" value={firstName} onChangeText={setFirstName} placeholder="Артём" autoFocus />
-          <Input label="Фамилия" value={lastName} onChangeText={setLastName} placeholder="(необязательно)" />
-          <Input
-            label="Отчество"
-            value={middleName}
-            onChangeText={setMiddleName}
-            placeholder="(необязательно)"
-          />
-          <ErrorText error={error} />
-          <Button title="Готово" onPress={onName} loading={loading} />
-        </View>
-      )}
-
-      <View style={{ alignItems: 'center', marginTop: spacing.md }}>
+      <View style={{ alignItems: 'center', marginTop: spacing.lg }}>
         <Text variant="label" tone="muted" onPress={() => router.replace('/(auth)/login')}>
-          Уже есть аккаунт? <Text tone="accent" variant="label">Войти</Text>
+          Уже есть аккаунт?{' '}
+          <Text tone="accent" variant="label">
+            Войти
+          </Text>
         </Text>
       </View>
     </Screen>
-  );
-}
-
-function Header({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-      <Text variant="title">{title}</Text>
-      <Text variant="body" tone="muted">
-        {subtitle}
-      </Text>
-    </View>
-  );
-}
-
-function ErrorText({ error }: { error: string | null }) {
-  if (!error) return null;
-  return (
-    <Text variant="caption" tone="danger">
-      {error}
-    </Text>
   );
 }

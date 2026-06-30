@@ -1,6 +1,8 @@
 // ============================================================
-// AuthProvider — owns the Supabase session and exposes the auth flows
-// the screens need: password login, OTP-based signup, password reset.
+// AuthProvider — owns the Supabase session and the auth flows the
+// screens need. MVP uses plain email + password (no email confirmation),
+// so signup logs the user in immediately. Requires "Confirm email" to be
+// OFF in Supabase → Authentication → Providers → Email.
 // ============================================================
 import type { Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
@@ -12,13 +14,9 @@ interface AuthContextValue {
   user: User | null;
   initializing: boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
-  /** step 1 of signup: email a 6-digit code (creates the user if new) */
-  sendSignupCode: (email: string) => Promise<void>;
-  /** step 2: verify the code → establishes a session */
-  verifySignupCode: (email: string, code: string) => Promise<void>;
-  /** step 3: set the chosen password */
-  setPassword: (password: string) => Promise<void>;
-  /** step 4: create the profile row with the user's name */
+  /** create account with email + password; with email-confirm off this also signs in */
+  signUpWithPassword: (email: string, password: string) => Promise<void>;
+  /** create the profile row with the user's name (after sign up) */
   completeProfile: (name: { firstName: string; lastName?: string; middleName?: string }) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
@@ -47,25 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
-  const sendSignupCode = async (email: string) => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: true },
-    });
-    if (error) throw error;
-  };
-
-  const verifySignupCode = async (email: string, code: string) => {
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: 'email',
-    });
-    if (error) throw error;
-  };
-
-  const setPassword = async (password: string) => {
-    const { error } = await supabase.auth.updateUser({ password });
+  const signUpWithPassword = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
     if (error) throw error;
   };
 
@@ -104,9 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: session?.user ?? null,
         initializing,
         signInWithPassword,
-        sendSignupCode,
-        verifySignupCode,
-        setPassword,
+        signUpWithPassword,
         completeProfile,
         sendPasswordReset,
         updatePassword,
