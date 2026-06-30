@@ -8,6 +8,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { createProfile, getProfile, supabase } from '../../core/data';
+import type { Profile } from '../../core/domain';
 
 interface AuthContextValue {
   session: Session | null;
@@ -20,8 +21,8 @@ interface AuthContextValue {
   signInWithPassword: (email: string, password: string) => Promise<void>;
   /** create account with email + password; with email-confirm off this also signs in */
   signUpWithPassword: (email: string, password: string) => Promise<void>;
-  /** create the profile row with the user's name (after sign up) */
-  completeProfile: (name: { firstName: string; lastName?: string; middleName?: string }) => Promise<void>;
+  /** create the profile row with the user's name (after sign up); returns it */
+  completeProfile: (name: { firstName: string; lastName?: string; middleName?: string }) => Promise<Profile>;
   sendPasswordReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -60,8 +61,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const uid = data.user?.id;
     if (!uid) throw new Error('Нет активной сессии');
     const existing = await getProfile(uid);
-    if (existing) return;
-    await createProfile({
+    if (existing) return existing;
+    return createProfile({
       id: uid,
       firstName: name.firstName.trim(),
       lastName: name.lastName?.trim() || null,

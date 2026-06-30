@@ -12,7 +12,7 @@ import { Button, Input, Logo, Screen, Text } from '../../ui/components';
 import { spacing } from '../../ui/theme';
 
 export default function CompleteProfileScreen() {
-  const { completeProfile, signOut, user } = useAuth();
+  const { completeProfile, signOut } = useAuth();
   const router = useRouter();
   const qc = useQueryClient();
   const [firstName, setFirstName] = useState('');
@@ -27,8 +27,8 @@ export default function CompleteProfileScreen() {
     if (!p.success) return setError(p.error.issues[0].message);
     setLoading(true);
     try {
-      await completeProfile({ firstName, lastName, middleName });
-      if (user?.id) qc.invalidateQueries({ queryKey: qk.profile(user.id) });
+      const profile = await completeProfile({ firstName, lastName, middleName });
+      qc.setQueryData(qk.profile(profile.id), profile);
       router.replace('/(app)');
     } catch (e: any) {
       setError(e?.message ?? 'Не удалось сохранить');
