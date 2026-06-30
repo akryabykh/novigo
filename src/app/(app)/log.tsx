@@ -130,7 +130,17 @@ export default function LogScreen() {
               <Text variant="heading">{sl.program.title}</Text>
               {sl.tasks.map((t) => {
                 const value = values[t.id] ?? 0;
-                const done = value >= t.target;
+                // overfulfillment is not allowed: daily caps at target/day,
+                // period caps at the remaining amount across the whole period.
+                const otherDaysSum =
+                  t.goalType === 'period'
+                    ? sl.logs
+                        .filter((l) => l.taskId === t.id && l.date !== today)
+                        .reduce((s, l) => s + l.value, 0)
+                    : 0;
+                const maxValue =
+                  t.goalType === 'daily' ? t.target : Math.max(0, t.target - otherDaysSum);
+                const done = value >= maxValue;
                 return (
                   <Card key={t.id}>
                     <View style={{ gap: spacing.md }}>
@@ -146,9 +156,9 @@ export default function LogScreen() {
                       </View>
                       <Stepper
                         value={value}
-                        onChange={(v) => save(t.id, v)}
+                        onChange={(v) => save(t.id, Math.min(v, maxValue))}
                         unit={t.unit ?? undefined}
-                        max={undefined}
+                        max={maxValue}
                       />
                     </View>
                   </Card>

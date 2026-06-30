@@ -57,7 +57,10 @@ export function Stepper({ value, onChange, step = 1, min = 0, max, unit }: Stepp
             keyboardType="numeric"
             onChangeText={(t) => {
               const n = parseFloat(t.replace(',', '.'));
-              onChange(Number.isFinite(n) ? n : 0);
+              let v = Number.isFinite(n) ? n : 0;
+              if (v < min) v = min;
+              if (max != null && v > max) v = max;
+              onChange(v);
             }}
             style={{
               fontFamily: typography.bold,

@@ -24,7 +24,7 @@ create table if not exists public.programs (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references auth.users(id) on delete cascade,
   title      text not null,
-  period     text not null check (period in ('1w','2w','1m')),
+  period     text not null check (period in ('7d','14d','30d')),
   start_date date not null default current_date,
   end_date   date not null,                -- проставляется триггером из period
   status     text not null default 'active' check (status in ('active','completed','archived')),
@@ -75,9 +75,9 @@ create or replace function public.set_program_end_date()
 returns trigger language plpgsql as $$
 begin
   new.end_date := case new.period
-    when '1w' then (new.start_date + interval '7 days')::date
-    when '2w' then (new.start_date + interval '14 days')::date
-    when '1m' then (new.start_date + interval '1 month')::date
+    when '7d'  then (new.start_date + interval '7 days')::date
+    when '14d' then (new.start_date + interval '14 days')::date
+    when '30d' then (new.start_date + interval '30 days')::date
   end;
   return new;
 end; $$;

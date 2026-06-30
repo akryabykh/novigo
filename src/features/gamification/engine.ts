@@ -2,6 +2,9 @@
 // Gamification engine — derives XP / level / streaks / achievements
 // from raw data. Pure + idempotent: always recomputed from scratch so
 // re-running never double-counts. Built on core/logic.
+//
+// Streaks are evaluated PER PROGRAM: a date counts as active if ANY active
+// program met its own daily-task threshold that day (not a global average).
 // ============================================================
 import type { AchievementCode, DailyLog, Program, Task } from '../../core/domain';
 import {
@@ -28,19 +31,24 @@ function logIndex(logs: DailyLog[]): Map<string, number> {
   return m;
 }
 
-/** A program "covers" a date if active/completed and date within [start..end]. */
-function programsCovering(date: string, programs: Program[]): Program[] {
-  return programs.filter(
-    (p) => p.status !== 'archived' && p.startDate <= date && date <= p.endDate,
-  );
+function covers(p: Program, date: string): boolean {
+  return p.status !== 'archived' && p.startDate <= date && date <= p.endDate;
 }
 
-/** Average daily completion (0..1) across all daily tasks whose program covers `date`. */
-export function dayProgress(date: string, { programs, tasks, logs }: Bundle): number {
-  const idx = logIndex(logs);
-  const covering = new Set(programsCovering(date, programs).map((p) => p.id));
-  const dailyTasks = tasks.filter((t) => t.goalType === 'daily' && covering.has(t.programId));
-  if (dailyTasks.length === 0) return 0;
+/**
+ * Daily completion (0..1) of a SINGLE program on `date`, averaged over its
+ * daily tasks. Returns null if the program has no daily tasks covering the date.
+ */
+export function programDayProgress(
+  programId: string,
+  date: string,
+  { programs, tasks, logs }: Bundle,
+  idx: Map<string, number> = logIndex(logs),
+): number | null {
+  const program = programs.find((p) => p.id === programId);
+  if (!program || !covers(program, date)) return null;
+  const dailyTasks = tasks.filter((t) => t.goalType === 'daily' && t.programId === programId);
+  if (dailyTasks.length === 0) return null;
   const sum = dailyTasks.reduce(
     (s, t) => s + clamp01((idx.get(`${t.id}|${date}`) ?? 0) / t.target),
     0,
@@ -48,10 +56,21 @@ export function dayProgress(date: string, { programs, tasks, logs }: Bundle): nu
   return sum / dailyTasks.length;
 }
 
-/** Dates (<= today) whose daily progress met the active-day threshold. */
+/** Best (max) per-program daily completion on `date` — drives streak + heatmap. */
+export function bestDayProgress(date: string, bundle: Bundle): number {
+  const idx = logIndex(bundle.logs);
+  let best = 0;
+  for (const p of bundle.programs) {
+    const v = programDayProgress(p.id, date, bundle, idx);
+    if (v != null && v > best) best = v;
+  }
+  return best;
+}
+
+/** Dates (<= today) where at least one program met its own active-day threshold. */
 export function activeDates(bundle: Bundle, today: string = todayISO()): string[] {
   const dates = [...new Set(bundle.logs.map((l) => l.date))].filter((d) => d <= today);
-  return dates.filter((d) => dayProgress(d, bundle) >= STREAK_ACTIVE_THRESHOLD);
+  return dates.filter((d) => bestDayProgress(d, bundle) >= STREAK_ACTIVE_THRESHOLD);
 }
 
 /** Total XP, recomputed from data (idempotent). */
@@ -78,10 +97,13 @@ export function computeXp(bundle: Bundle, today: string = todayISO()): number {
     }
   }
 
-  // +5 per perfect day (all covering daily tasks at 100%)
+  // +5 per perfect program-day (all of a program's daily tasks at 100%)
   const loggedDates = [...new Set(bundle.logs.map((l) => l.date))].filter((d) => d <= today);
-  for (const d of loggedDates) {
-    if (dayProgress(d, bundle) >= 1) xp += XP.PERFECT_DAY;
+  for (const p of programs) {
+    for (const d of loggedDates) {
+      const v = programDayProgress(p.id, d, bundle, idx);
+      if (v != null && v >= 1) xp += XP.PERFECT_DAY;
+    }
   }
 
   // +100 per completed program

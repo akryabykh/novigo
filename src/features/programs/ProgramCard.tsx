@@ -6,9 +6,9 @@ import { Card, Chip, ProgressRing, Text } from '../../ui/components';
 import { spacing } from '../../ui/theme';
 
 const PERIOD_LABEL: Record<Program['period'], string> = {
-  '1w': 'Неделя',
-  '2w': '2 недели',
-  '1m': 'Месяц',
+  '7d': '7 дней',
+  '14d': '14 дней',
+  '30d': '30 дней',
 };
 
 function daysWord(n: number): string {

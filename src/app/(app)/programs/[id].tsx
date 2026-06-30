@@ -1,10 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { daysRemaining, programProgress, taskProgress } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { sliceProgram } from '../../../features/programs/select';
-import { useSetProgramStatus, useWorkspace } from '../../../features/queries';
+import { useDeleteProgram, useSetProgramStatus, useWorkspace } from '../../../features/queries';
 import {
   Button,
   Card,
@@ -19,7 +20,7 @@ import {
 import { spacing } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
-const PERIOD_LABEL = { '1w': 'Неделя', '2w': '2 недели', '1m': 'Месяц' } as const;
+const PERIOD_LABEL = { '7d': '7 дней', '14d': '14 дней', '30d': '30 дней' } as const;
 
 export default function ProgramDetailScreen() {
   const c = useColors();
@@ -28,6 +29,8 @@ export default function ProgramDetailScreen() {
   const { user } = useAuth();
   const { data: ws, isLoading } = useWorkspace(user?.id);
   const setStatus = useSetProgramStatus(user?.id);
+  const deleteProgram = useDeleteProgram(user?.id);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const slice = ws && id ? sliceProgram(ws, id) : null;
 
@@ -133,6 +136,43 @@ export default function ProgramDetailScreen() {
                 )
               }
             />
+
+            {!confirmDelete ? (
+              <Button
+                title="Удалить программу"
+                variant="ghost"
+                onPress={() => setConfirmDelete(true)}
+                style={{ marginTop: spacing.sm }}
+              />
+            ) : (
+              <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+                <Text variant="caption" tone="danger" style={{ textAlign: 'center' }}>
+                  Удалить навсегда? Программа, задачи и история отметок будут стёрты без возможности
+                  восстановления.
+                </Text>
+                <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      title="Отмена"
+                      variant="secondary"
+                      onPress={() => setConfirmDelete(false)}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      title="Удалить"
+                      variant="danger"
+                      loading={deleteProgram.isPending}
+                      onPress={() =>
+                        deleteProgram.mutate(slice.program.id, {
+                          onSuccess: () => router.replace('/(app)'),
+                        })
+                      }
+                    />
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
         </>
       )}

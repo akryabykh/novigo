@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createProgram,
   createTasks,
+  deleteProgram,
   getProfile,
   listAchievements,
   listLogsByTasks,
@@ -96,6 +97,14 @@ export function useSetProgramStatus(uid: string | undefined) {
       await updateProgramStatus(input.programId, input.status);
       if (uid) await syncGamification(uid);
     },
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteProgram(uid: string | undefined) {
+  const invalidate = useInvalidateAll(uid);
+  return useMutation({
+    mutationFn: (programId: string) => deleteProgram(programId),
     onSuccess: invalidate,
   });
 }

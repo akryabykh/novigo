@@ -4,7 +4,8 @@
 // ============================================================
 
 // ---------- ДОМЕННЫЕ ТИПЫ (core/domain) ----------
-export type Period = '1w' | '2w' | '1m';
+// Периоды day-based: 7 / 14 / 30 дней (end_date считает триггер БД).
+export type Period = '7d' | '14d' | '30d';
 export type GoalType = 'daily' | 'period';
 export type ProgramStatus = 'active' | 'completed' | 'archived';
 

@@ -13,7 +13,7 @@ export const nameSchema = z.object({
   middleName: z.string().trim().optional().or(z.literal('')),
 });
 
-export const periodSchema = z.enum(['1w', '2w', '1m']);
+export const periodSchema = z.enum(['7d', '14d', '30d']);
 export const goalTypeSchema = z.enum(['daily', 'period']);
 
 export const taskDraftSchema = z.object({

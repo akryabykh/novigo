@@ -4,7 +4,7 @@ import type { DailyLog, Program, Task } from '../../core/domain';
 import { addDays, todayISO } from '../../core/logic';
 import { Text } from '../../ui/components';
 import { useColors } from '../../ui/theme-provider';
-import { dayProgress } from './engine';
+import { bestDayProgress } from './engine';
 
 const WEEKS = 9;
 const CELL = 15;
@@ -36,7 +36,7 @@ export function Heatmap({
         col.push({ date, level: -1 });
         continue;
       }
-      const p = dayProgress(date, bundle);
+      const p = bestDayProgress(date, bundle);
       const level = p <= 0 ? 0 : p < 0.4 ? 1 : p < 0.8 ? 2 : p < 1 ? 3 : 4;
       col.push({ date, level });
     }

@@ -38,9 +38,9 @@ const newRow = (): Row => ({
 });
 
 const PERIODS: { value: Period; label: string }[] = [
-  { value: '1w', label: 'Неделя' },
-  { value: '2w', label: '2 недели' },
-  { value: '1m', label: 'Месяц' },
+  { value: '7d', label: '7 дней' },
+  { value: '14d', label: '14 дней' },
+  { value: '30d', label: '30 дней' },
 ];
 
 const GOAL_TYPES: { value: GoalType; label: string }[] = [
@@ -55,7 +55,7 @@ export default function NewProgramScreen() {
   const createProgram = useCreateProgram(user?.id);
 
   const [title, setTitle] = useState('');
-  const [period, setPeriod] = useState<Period>('1w');
+  const [period, setPeriod] = useState<Period>('7d');
   const [rows, setRows] = useState<Row[]>([newRow()]);
   const [error, setError] = useState<string | null>(null);
 
