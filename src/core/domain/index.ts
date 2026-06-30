@@ -1,6 +1,6 @@
-// Domain types. Core entities (Program/Task/DailyLog) live with the pure logic
-// (single source); here we re-export them and add the user-facing entities.
-export type { Period, GoalType, ProgramStatus, Task, DailyLog, Program } from '../logic';
+// Domain types. Core entities (Goal/GoalSession/DailyLog/Timeframe) live with the
+// pure logic (single source); here we re-export them and add user-facing entities.
+export type { Timeframe, Goal, GoalSession, DailyLog } from '../logic';
 
 export interface Profile {
   id: string;
@@ -14,10 +14,10 @@ export interface Profile {
 }
 
 export type AchievementCode =
-  | 'first_step' // первое выполнение
+  | 'first_step' // первая отметка
   | 'week_streak' // 7 дней подряд
-  | 'program_complete' // завершённая программа
-  | 'perfect_program'; // 100% программы
+  | 'perfect_day' // 100% дневного кольца
+  | 'session_master'; // сессия пройдена на 100%
 
 export interface Achievement {
   id: string;
@@ -26,10 +26,9 @@ export interface Achievement {
   unlockedAt: string;
 }
 
-/** Catalog used by the Progress screen to render locked/unlocked medallions. */
 export const ACHIEVEMENTS: { code: AchievementCode; emoji: string; title: string }[] = [
   { code: 'first_step', emoji: '👟', title: 'Первый шаг' },
   { code: 'week_streak', emoji: '🔥', title: '7 дней подряд' },
-  { code: 'program_complete', emoji: '🏁', title: 'Программа завершена' },
-  { code: 'perfect_program', emoji: '💎', title: '100% программы' },
+  { code: 'perfect_day', emoji: '⭐️', title: 'Идеальный день' },
+  { code: 'session_master', emoji: '💎', title: 'Сессия на 100%' },
 ];

@@ -1,25 +1,25 @@
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAuth } from '../../../features/auth/auth-provider';
-import { LevelBar } from '../../../features/gamification/LevelBar';
-import { StreakPill } from '../../../features/gamification/StreakPill';
-import { ProgramCard } from '../../../features/programs/ProgramCard';
-import { activeSlices, overallProgress } from '../../../features/programs/select';
-import { useProfile, useWorkspace } from '../../../features/queries';
+import type { DailyLog, Timeframe } from '../../../core/domain';
 import {
-  Button,
-  Card,
-  EmptyState,
-  PlusIcon,
-  ProgressRing,
-  Skeleton,
-  Text,
-} from '../../../ui/components';
-import { radius, spacing } from '../../../ui/theme';
+  computeRings,
+  currentWeekIndex,
+  dayIndex,
+  daysRemaining,
+  todayISO,
+} from '../../../core/logic';
+import { useAuth } from '../../../features/auth/auth-provider';
+import { GoalRow } from '../../../features/goals/GoalRow';
+import { goalsByTimeframe } from '../../../features/goals/select';
+import { useProfile, useUpsertLog, useWorkspace } from '../../../features/queries';
+import { EmptyState, PlusIcon, ProgressRing, Skeleton, Text } from '../../../ui/components';
+import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
+
+const ORDER: Timeframe[] = ['day', 'week', 'month'];
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -32,19 +32,55 @@ function greeting(): string {
 export default function HomeScreen() {
   const c = useColors();
   const router = useRouter();
+  const today = todayISO();
   const { user } = useAuth();
   const uid = user?.id;
   const { data: profile } = useProfile(uid);
   const { data: ws, isLoading, refetch, isRefetching } = useWorkspace(uid);
+  const upsert = useUpsertLog(uid);
 
-  const slices = useMemo(() => (ws ? activeSlices(ws) : []), [ws]);
-  const overall = useMemo(() => overallProgress(slices), [slices]);
+  const [selected, setSelected] = useState<Timeframe>('day');
+  const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // merge today's optimistic overrides over server logs
+  const mergedLogs = useMemo<DailyLog[]>(() => {
+    if (!ws) return [];
+    const base = ws.logs.filter((l) => !(l.date === today && overrides[l.goalId] !== undefined));
+    const overs = Object.entries(overrides).map(([goalId, value]) => ({ goalId, date: today, value }));
+    return [...base, ...overs];
+  }, [ws, overrides, today]);
+
+  const rings = useMemo(
+    () => (ws?.session ? computeRings(ws.session, ws.goals, mergedLogs, today) : null),
+    [ws, mergedLogs, today],
+  );
+
+  const ringLabels = useMemo<Record<Timeframe, string>>(() => {
+    if (!ws?.session) return { day: 'День', week: 'Неделя', month: 'Месяц' };
+    return {
+      day: `День ${dayIndex(ws.session.startDate, today) + 1}`,
+      week: `Неделя ${currentWeekIndex(ws.session.startDate, today) + 1}`,
+      month: 'Месяц',
+    };
+  }, [ws, today]);
+
+  const save = (goalId: string, todayValue: number) => {
+    setOverrides((o) => ({ ...o, [goalId]: todayValue }));
+    clearTimeout(timers.current[goalId]);
+    timers.current[goalId] = setTimeout(() => {
+      upsert.mutate({ goalId, date: today, value: todayValue });
+    }, 500);
+  };
+
+  const selectedGoals = ws ? goalsByTimeframe(ws, selected) : [];
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
         contentContainerStyle={{ alignItems: 'center', paddingBottom: spacing['2xl'] }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={c.accent} />}>
         <View style={{ width: '100%', maxWidth: 560, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
           {/* header */}
@@ -62,7 +98,7 @@ export default function HomeScreen() {
               <Text variant="title">{profile?.firstName ?? '...'}</Text>
             </View>
             <Pressable
-              onPress={() => router.push('/(app)/programs/new')}
+              onPress={() => router.push('/(app)/goals/new')}
               style={{
                 width: 48,
                 height: 48,
@@ -77,71 +113,97 @@ export default function HomeScreen() {
 
           {isLoading ? (
             <View style={{ gap: spacing.lg }}>
-              <Skeleton height={180} rounded={radius.lg} />
-              <Skeleton height={90} rounded={radius.lg} />
-              <Skeleton height={90} rounded={radius.lg} />
+              <Skeleton height={140} rounded={radius.lg} />
+              <Skeleton height={96} rounded={radius.lg} />
+              <Skeleton height={96} rounded={radius.lg} />
             </View>
-          ) : slices.length === 0 ? (
+          ) : !ws?.session ? (
             <EmptyState
               emoji="🎯"
-              title="Пока нет активных программ"
-              subtitle="Создайте первую программу, разбейте цель на задачи и начните двигаться."
-              ctaTitle="Создать первую программу"
-              onCta={() => router.push('/(app)/programs/new')}
+              title="Поставь первые цели"
+              subtitle="Создай сессию целей на день, неделю и месяц — и начни двигаться. Отсчёт пойдёт с этого момента."
+              ctaTitle="Создать цели"
+              onCta={() => router.push('/(app)/goals/new')}
             />
           ) : (
             <>
-              {/* hero overall ring */}
-              <Card>
-                <View style={{ alignItems: 'center', gap: spacing.md }}>
-                  <Text variant="label" tone="muted">
-                    ОБЩИЙ ПРОГРЕСС
-                  </Text>
-                  <ProgressRing progress={overall} size={172} stroke={15} sublabel="по активным" />
-                  <Button
-                    title="Отметить сегодня"
-                    onPress={() => router.push('/(app)/log')}
-                    size="md"
-                  />
-                </View>
-              </Card>
-
-              {/* gamification row */}
-              <View style={{ gap: spacing.lg }}>
-                <LevelBar xp={profile?.xp ?? 0} />
-                <View style={{ flexDirection: 'row', gap: spacing.lg }}>
-                  <StreakPill
-                    current={profile?.currentStreak ?? 0}
-                    best={profile?.bestStreak ?? 0}
-                  />
-                  <Card style={{ flex: 1 }}>
-                    <View style={{ gap: spacing.sm }}>
-                      <Text variant="title">{slices.length}</Text>
-                      <Text variant="caption" tone="muted">
-                        активных программ
+              {/* clickable rings selector */}
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                {ORDER.map((tf) => {
+                  const active = tf === selected;
+                  const value = rings ? rings[tf] : 0;
+                  return (
+                    <Pressable
+                      key={tf}
+                      onPress={() => setSelected(tf)}
+                      style={{
+                        flex: 1,
+                        alignItems: 'center',
+                        gap: spacing.sm,
+                        paddingVertical: spacing.md,
+                        borderRadius: radius.lg,
+                        borderWidth: 1.5,
+                        borderColor: active ? timeframeColor[tf] : c.border,
+                        backgroundColor: active ? c.surface : 'transparent',
+                      }}>
+                      <ProgressRing
+                        progress={value}
+                        size={84}
+                        stroke={8}
+                        color={timeframeColor[tf]}
+                      />
+                      <Text
+                        variant="label"
+                        style={{ color: active ? timeframeColor[tf] : c.textMuted }}>
+                        {ringLabels[tf]}
                       </Text>
-                    </View>
-                  </Card>
-                </View>
+                    </Pressable>
+                  );
+                })}
               </View>
 
-              {/* program list */}
-              <Text variant="heading" style={{ marginTop: spacing.sm }}>
-                Программы
+              <Text
+                variant="caption"
+                tone="faint"
+                style={{ textAlign: 'center' }}
+                onPress={() => router.push('/(app)/goals/edit')}>
+                Сессия · осталось {daysRemaining(ws.session.startDate, today)} дн. ·{' '}
+                <Text variant="caption" tone="accent">
+                  настроить
+                </Text>
               </Text>
-              <View style={{ gap: spacing.md }}>
-                {slices.map((sl) => (
-                  <ProgramCard
-                    key={sl.program.id}
-                    program={sl.program}
-                    tasks={sl.tasks}
-                    logs={sl.logs}
-                    onPress={() =>
-                      router.push({ pathname: '/(app)/programs/[id]', params: { id: sl.program.id } })
-                    }
-                  />
-                ))}
+
+              {/* selected horizon goals with inline +/- */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <View
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: timeframeColor[selected],
+                  }}
+                />
+                <Text variant="heading">Цели · {timeframeLabel[selected].toLowerCase()}</Text>
               </View>
+
+              {selectedGoals.length === 0 ? (
+                <Text variant="body" tone="muted">
+                  На этот горизонт целей нет.
+                </Text>
+              ) : (
+                <View style={{ gap: spacing.md }}>
+                  {selectedGoals.map((g) => (
+                    <GoalRow
+                      key={g.id}
+                      session={ws.session!}
+                      goal={g}
+                      logs={mergedLogs}
+                      today={today}
+                      onSave={save}
+                    />
+                  ))}
+                </View>
+              )}
             </>
           )}
         </View>

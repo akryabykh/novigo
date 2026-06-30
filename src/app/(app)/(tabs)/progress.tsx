@@ -19,14 +19,10 @@ export default function ProgressScreen() {
   const { data: unlocked } = useAchievements(uid);
 
   const unlockedSet = useMemo(() => new Set((unlocked ?? []).map((a) => a.code)), [unlocked]);
-  const stats = useMemo(() => {
-    if (!ws) return { activeDays: 0, completed: 0, programs: 0 };
-    return {
-      activeDays: activeDates(ws).length,
-      completed: ws.programs.filter((p) => p.status === 'completed').length,
-      programs: ws.programs.length,
-    };
-  }, [ws]);
+  const activeDays = useMemo(
+    () => (ws?.session ? activeDates({ session: ws.session, goals: ws.goals, logs: ws.logs }).length : 0),
+    [ws],
+  );
 
   return (
     <Screen>
@@ -47,12 +43,12 @@ export default function ProgressScreen() {
             <StreakPill current={profile?.currentStreak ?? 0} best={profile?.bestStreak ?? 0} />
             <Card style={{ flex: 1 }}>
               <View style={{ gap: spacing.sm }}>
-                <Text variant="title">{stats.activeDays}</Text>
+                <Text variant="title">{activeDays}</Text>
                 <Text variant="caption" tone="muted">
                   активных дней
                 </Text>
                 <Text variant="caption" tone="faint">
-                  Программ завершено: {stats.completed}
+                  Целей в сессии: {ws?.goals.length ?? 0}
                 </Text>
               </View>
             </Card>
@@ -61,9 +57,7 @@ export default function ProgressScreen() {
           <Text variant="heading" style={{ marginTop: spacing.sm }}>
             Активность
           </Text>
-          <Card>
-            {ws ? <Heatmap programs={ws.programs} tasks={ws.tasks} logs={ws.logs} /> : null}
-          </Card>
+          <Card>{ws ? <Heatmap goals={ws.goals} logs={ws.logs} /> : null}</Card>
 
           <Text variant="heading" style={{ marginTop: spacing.sm }}>
             Достижения
@@ -77,12 +71,7 @@ export default function ProgressScreen() {
                 rowGap: spacing.lg,
               }}>
               {ACHIEVEMENTS.map((a) => (
-                <Badge
-                  key={a.code}
-                  emoji={a.emoji}
-                  title={a.title}
-                  unlocked={unlockedSet.has(a.code)}
-                />
+                <Badge key={a.code} emoji={a.emoji} title={a.title} unlocked={unlockedSet.has(a.code)} />
               ))}
             </View>
           </Card>

@@ -26,7 +26,7 @@ import { ThemeProvider, useColors, useTheme } from '../ui/theme-provider';
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function RootGate() {
-  const { session, initializing } = useAuth();
+  const { session, initializing, admin } = useAuth();
   const uid = session?.user?.id;
   const { data: profile, isLoading: profileLoading } = useProfile(uid);
   const segments = useSegments();
@@ -34,6 +34,10 @@ function RootGate() {
   const c = useColors();
 
   useEffect(() => {
+    if (admin) {
+      if (segments[0] !== '(admin)') router.replace('/(admin)');
+      return;
+    }
     if (initializing) return;
     const inAuthGroup = segments[0] === '(auth)';
 
@@ -47,13 +51,14 @@ function RootGate() {
       return;
     }
     if (inAuthGroup) router.replace('/(app)');
-  }, [session, initializing, profile, profileLoading, segments, router]);
+  }, [session, initializing, admin, profile, profileLoading, segments, router]);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
+        <Stack.Screen name="(admin)" />
       </Stack>
     </View>
   );

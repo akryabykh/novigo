@@ -13,10 +13,7 @@ export const queryClient = new QueryClient({
 
 export const qk = {
   profile: (uid: string) => ['profile', uid] as const,
-  programs: (uid: string) => ['programs', uid] as const,
-  program: (id: string) => ['program', id] as const,
-  tasks: (programId: string) => ['tasks', programId] as const,
-  /** aggregate of all programs+tasks+logs for a user (home + progress + gamification) */
+  /** active session + its goals + logs */
   workspace: (uid: string) => ['workspace', uid] as const,
   achievements: (uid: string) => ['achievements', uid] as const,
 };

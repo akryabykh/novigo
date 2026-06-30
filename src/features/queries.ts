@@ -2,34 +2,36 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
-  createProgram,
-  createTasks,
-  deleteProgram,
+  createGoals,
+  createSession,
+  deleteGoal,
+  deleteSession,
+  getActiveSession,
   getProfile,
   listAchievements,
-  listLogsByTasks,
-  listPrograms,
-  listTasksByPrograms,
+  listGoalsBySessions,
+  listLogsByGoals,
+  updateGoal,
   updateProfileNames,
-  updateProgramStatus,
   upsertLog,
-  type NewTask,
+  type NewGoal,
 } from '../core/data';
-import type { DailyLog, Period, Program, ProgramStatus, Task } from '../core/domain';
+import type { DailyLog, Goal, GoalSession } from '../core/domain';
 import { qk } from '../core/query';
 import { syncGamification } from './gamification/sync';
 
 export interface Workspace {
-  programs: Program[];
-  tasks: Task[];
+  session: GoalSession | null;
+  goals: Goal[];
   logs: DailyLog[];
 }
 
 async function loadWorkspace(uid: string): Promise<Workspace> {
-  const programs = await listPrograms(uid);
-  const tasks = await listTasksByPrograms(programs.map((p) => p.id));
-  const logs = await listLogsByTasks(tasks.map((t) => t.id));
-  return { programs, tasks, logs };
+  const session = await getActiveSession(uid);
+  if (!session) return { session: null, goals: [], logs: [] };
+  const goals = await listGoalsBySessions([session.id]);
+  const logs = await listLogsByGoals(goals.map((g) => g.id));
+  return { session, goals, logs };
 }
 
 export function useProfile(uid: string | undefined) {
@@ -66,13 +68,14 @@ function useInvalidateAll(uid: string | undefined) {
   };
 }
 
-export function useCreateProgram(uid: string | undefined) {
+/** Create a new goal session with its goals (day/week/month). */
+export function useCreateSession(uid: string | undefined) {
   const invalidate = useInvalidateAll(uid);
   return useMutation({
-    mutationFn: async (input: { title: string; period: Period; tasks: NewTask[] }) => {
-      const program = await createProgram({ userId: uid!, title: input.title, period: input.period });
-      await createTasks(program.id, input.tasks);
-      return program;
+    mutationFn: async (goals: NewGoal[]) => {
+      const session = await createSession(uid!);
+      await createGoals(session.id, goals);
+      return session;
     },
     onSuccess: invalidate,
   });
@@ -81,8 +84,8 @@ export function useCreateProgram(uid: string | undefined) {
 export function useUpsertLog(uid: string | undefined) {
   const invalidate = useInvalidateAll(uid);
   return useMutation({
-    mutationFn: async (input: { taskId: string; date: string; value: number }) => {
-      const log = await upsertLog(input.taskId, input.date, input.value);
+    mutationFn: async (input: { goalId: string; date: string; value: number }) => {
+      const log = await upsertLog(input.goalId, input.date, input.value);
       if (uid) await syncGamification(uid);
       return log;
     },
@@ -90,21 +93,34 @@ export function useUpsertLog(uid: string | undefined) {
   });
 }
 
-export function useSetProgramStatus(uid: string | undefined) {
+export interface GoalUpdate {
+  id: string;
+  title: string;
+  target: number;
+  weight: number;
+}
+export function useSaveGoals(uid: string | undefined) {
   const invalidate = useInvalidateAll(uid);
   return useMutation({
-    mutationFn: async (input: { programId: string; status: ProgramStatus }) => {
-      await updateProgramStatus(input.programId, input.status);
+    mutationFn: async (input: {
+      sessionId: string;
+      updates: GoalUpdate[];
+      creates: NewGoal[];
+      deletes: string[];
+    }) => {
+      for (const u of input.updates) await updateGoal(u.id, u);
+      for (const id of input.deletes) await deleteGoal(id);
+      if (input.creates.length) await createGoals(input.sessionId, input.creates);
       if (uid) await syncGamification(uid);
     },
     onSuccess: invalidate,
   });
 }
 
-export function useDeleteProgram(uid: string | undefined) {
+export function useDeleteSession(uid: string | undefined) {
   const invalidate = useInvalidateAll(uid);
   return useMutation({
-    mutationFn: (programId: string) => deleteProgram(programId),
+    mutationFn: (sessionId: string) => deleteSession(sessionId),
     onSuccess: invalidate,
   });
 }
