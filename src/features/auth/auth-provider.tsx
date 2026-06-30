@@ -30,16 +30,25 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Guard against the auth call hanging forever (e.g. cold Supabase project). */
+function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(msg)), ms)),
+  ]);
+}
+const SLOW = 'Сервер долго не отвечает — попробуйте ещё раз.';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setInitializing(false);
-    });
+    withTimeout(supabase.auth.getSession(), 15000, SLOW)
+      .then(({ data }) => setSession(data.session))
+      .catch(() => {})
+      .finally(() => setInitializing(false));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
     });
@@ -47,12 +56,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithPassword = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await withTimeout(
+      supabase.auth.signInWithPassword({ email: email.trim(), password }),
+      15000,
+      SLOW,
+    );
     if (error) throw error;
   };
 
   const signUpWithPassword = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+    const { error } = await withTimeout(
+      supabase.auth.signUp({ email: email.trim(), password }),
+      15000,
+      SLOW,
+    );
     if (error) throw error;
   };
 
