@@ -5,10 +5,10 @@
 // отсчёт идёт ОТ ЭТОГО МОМЕНТА (не календарь, не регистрация).
 // Сессия = 4 недели = 28 дней.
 //
-// Кольца связаны 50/50:
+// Кольца вложенные:
 //   • День   = дневные цели за сегодня (100%).
-//   • Неделя = 50% (как шли дневные цели на этой неделе) + 50% (недельные цели по весам).
-//   • Месяц  = 50% (среднее результатов недель) + 50% (месячные цели по весам).
+//   • Неделя = 60% (как шли дневные цели на этой неделе) + 40% (недельные цели по весам).
+//   • Месяц  = 80% (среднее результатов недель) + 20% (месячные цели по весам).
 // ============================================================
 
 export type Timeframe = 'day' | 'week' | 'month';
@@ -17,6 +17,14 @@ export const TIMEFRAMES: Timeframe[] = ['day', 'week', 'month'];
 export const WEEK_DAYS = 7;
 export const WEEKS_IN_SESSION = 4;
 export const SESSION_DAYS = WEEK_DAYS * WEEKS_IN_SESSION; // 28
+
+// Доли вложенных колец:
+//   Неделя = 60% дни + 40% недельные цели
+//   Месяц  = 80% недели + 20% месячные цели
+export const WEEK_DAY_WEIGHT = 0.6;
+export const WEEK_OWN_WEIGHT = 0.4;
+export const MONTH_WEEKS_WEIGHT = 0.8;
+export const MONTH_OWN_WEIGHT = 0.2;
 
 export interface Goal {
   id: string;
@@ -109,12 +117,13 @@ function only(goals: Goal[], tf: Timeframe): Goal[] {
   return goals.filter((g) => g.timeframe === tf);
 }
 /**
- * Связка 50/50 с ФИКСИРОВАННЫМИ долями: отсутствующая половина считается за 0
- * (не перенормируется). Так «идеальный день = 1/7 от 50%», а не от 100%.
+ * Взвешенная связка двух частей с ФИКСИРОВАННЫМИ долями: отсутствующая часть
+ * считается за 0 (не перенормируется). Так дневная половина недели ограничена
+ * 60%, а недельная половина месяца — 80%.
  */
-function blendHalf(a: number | null, b: number | null): number | null {
+function blend(a: number | null, wa: number, b: number | null, wb: number): number | null {
   if (a == null && b == null) return null;
-  return 0.5 * (a ?? 0) + 0.5 * (b ?? 0);
+  return wa * (a ?? 0) + wb * (b ?? 0);
 }
 
 // ---------- ПРОГРЕСС ПО ГОРИЗОНТАМ ----------
@@ -144,8 +153,8 @@ function monthGoalsProgress(
 }
 
 /**
- * Кольцо недели weekIndex: 50% дневные + 50% недельные.
- * Дневная половина — сумма дневных колец за 7 дней недели / 7 (идеальный день = 1/7),
+ * Кольцо недели weekIndex: 60% дневные + 40% недельные.
+ * Дневная часть — сумма дневных колец за 7 дней недели / 7 (идеальный день = 1/7 от 60%),
  * будущие дни просто 0. Знаменатель фиксированный, поэтому неделя наполняется постепенно.
  */
 export function weekRingFor(
@@ -161,7 +170,7 @@ export function weekRingFor(
       : enumerateDates(wStart, wEnd).reduce((s, d) => s + (dayGoalsOn(goals, logs, d) ?? 0), 0) /
         WEEK_DAYS;
   const weekPart = weekGoalsProgress(goals, logs, wStart, wEnd);
-  return blendHalf(dayPart, weekPart);
+  return blend(dayPart, WEEK_DAY_WEIGHT, weekPart, WEEK_OWN_WEIGHT);
 }
 
 export interface Rings {
@@ -193,7 +202,7 @@ export function computeRings(
     weeksPart = s / WEEKS_IN_SESSION;
   }
   const monthPart = monthGoalsProgress(goals, logs, session.startDate, sessionEnd(session.startDate));
-  const month = blendHalf(weeksPart, monthPart) ?? 0;
+  const month = blend(weeksPart, MONTH_WEEKS_WEIGHT, monthPart, MONTH_OWN_WEIGHT) ?? 0;
 
   return { day, week, month };
 }

@@ -292,7 +292,7 @@ const SLIDES: { title: string; text: string }[] = [
   },
   {
     title: 'Откуда проценты',
-    text: 'День — это дневные цели. Неделя = 50% от того, как шли дни (идеальный день = 1/7), плюс 50% недельные цели. Месяц = 50% от 4 недель плюс 50% месячные. Веса внутри каждого горизонта в сумме = 100%.',
+    text: 'День — это дневные цели (100%). Неделя = 60% от того, как шли дни, плюс 40% недельные цели. Месяц = 80% от результатов 4 недель плюс 20% месячные цели. А %-веса целей внутри каждого горизонта в сумме = 100%.',
   },
 ];
 
@@ -418,8 +418,8 @@ function IlloFormula() {
   return (
     <View style={{ gap: spacing.lg, alignSelf: 'stretch', paddingHorizontal: spacing.sm }}>
       <FormulaRow color={timeframeColor.day} title="День" text="дневные цели — 100%" />
-      <FormulaRow color={timeframeColor.week} title="Неделя" text="½ дни + ½ недельные цели" />
-      <FormulaRow color={timeframeColor.month} title="Месяц" text="½ недели + ½ месячные цели" />
+      <FormulaRow color={timeframeColor.week} title="Неделя" text="60% дни + 40% недельные цели" />
+      <FormulaRow color={timeframeColor.month} title="Месяц" text="80% недели + 20% месячные цели" />
     </View>
   );
 }
