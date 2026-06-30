@@ -8,7 +8,7 @@ import { validateWeights } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { useCreateSession } from '../../../features/queries';
 import type { NewGoal } from '../../../core/data';
-import { Button, Card, Input, ProgressBar, Text } from '../../../ui/components';
+import { Button, Card, Input, ProgressBar, ProgressRing, Text } from '../../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
@@ -36,6 +36,7 @@ export default function NewSessionScreen() {
   const { user } = useAuth();
   const createSession = useCreateSession(user?.id);
 
+  const [step, setStep] = useState<'intro' | 'form'>('intro');
   const [rows, setRows] = useState<Rows>({ day: [newRow()], week: [], month: [] });
   const [error, setError] = useState<string | null>(null);
 
@@ -91,6 +92,14 @@ export default function NewSessionScreen() {
     });
   };
 
+  if (step === 'intro') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top', 'bottom']}>
+        <Intro onStart={() => setStep('form')} onClose={() => router.back()} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={['top', 'bottom']}>
       <View
@@ -135,7 +144,7 @@ export default function NewSessionScreen() {
             </Text>
           ) : null}
 
-          <Button title="Создать цели" onPress={submit} loading={createSession.isPending} />
+          <Button title="Поставить цели" onPress={submit} loading={createSession.isPending} />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -247,7 +256,7 @@ function Section({
             justifyContent: 'center',
           }}>
           <Text variant="label" style={{ color }}>
-            + Добавить цель
+            Добавить цель
           </Text>
         </Pressable>
         {rows.length > 1 ? (
@@ -267,6 +276,150 @@ function Section({
           </Pressable>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+// ---------- ОНБОРДИНГ ----------
+const SLIDES: { title: string; text: string }[] = [
+  {
+    title: 'Сессия целей',
+    text: 'Ставишь цели на день, неделю и месяц. Отсчёт идёт с этого момента и длится 4 недели — это одна сессия.',
+  },
+  {
+    title: 'Три кольца',
+    text: 'На главном — три кольца. Тапни кольцо, чтобы открыть цели этого горизонта, и отмечай прогресс прямо на плашке кнопками + и −.',
+  },
+  {
+    title: 'Откуда проценты',
+    text: 'День — это дневные цели. Неделя = 50% от того, как шли дни (идеальный день = 1/7), плюс 50% недельные цели. Месяц = 50% от 4 недель плюс 50% месячные. Веса внутри каждого горизонта в сумме = 100%.',
+  },
+];
+
+function Intro({ onStart, onClose }: { onStart: () => void; onClose: () => void }) {
+  const c = useColors();
+  const [i, setI] = useState(0);
+  const last = i === SLIDES.length - 1;
+  const slide = SLIDES[i];
+
+  return (
+    <View style={{ flex: 1, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+        <Text variant="label" tone="muted" onPress={onClose}>
+          Закрыть
+        </Text>
+      </View>
+
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing['2xl'] }}>
+        <View style={{ height: 200, alignItems: 'center', justifyContent: 'center' }}>
+          {i === 0 ? <IlloSession /> : i === 1 ? <IlloRings /> : <IlloFormula />}
+        </View>
+        <View style={{ gap: spacing.md, alignItems: 'center', maxWidth: 460 }}>
+          <Text variant="title" style={{ textAlign: 'center' }}>
+            {slide.title}
+          </Text>
+          <Text variant="body" tone="muted" style={{ textAlign: 'center' }}>
+            {slide.text}
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: spacing.lg }}>
+        {SLIDES.map((_, idx) => (
+          <View
+            key={idx}
+            style={{
+              width: idx === i ? 22 : 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: idx === i ? c.accent : c.border,
+            }}
+          />
+        ))}
+      </View>
+
+      <View style={{ gap: spacing.md }}>
+        <Button title={last ? 'Поставить цели' : 'Далее'} onPress={() => (last ? onStart() : setI(i + 1))} />
+        {i > 0 ? (
+          <Text variant="label" tone="muted" style={{ textAlign: 'center' }} onPress={() => setI(i - 1)}>
+            Назад
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function IlloSession() {
+  const c = useColors();
+  return (
+    <View style={{ gap: 6, alignItems: 'center' }}>
+      {[0, 1, 2, 3].map((r) => (
+        <View key={r} style={{ flexDirection: 'row', gap: 6 }}>
+          {[0, 1, 2, 3, 4, 5, 6].map((d) => {
+            const idx = r * 7 + d;
+            return (
+              <View
+                key={d}
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 7,
+                  backgroundColor: idx === 0 ? timeframeColor.day : c.surfaceAlt,
+                }}
+              />
+            );
+          })}
+        </View>
+      ))}
+      <View style={{ height: spacing.sm }} />
+      <Text variant="caption" tone="faint">
+        4 недели · 28 дней
+      </Text>
+    </View>
+  );
+}
+
+function IlloRings() {
+  const data: { tf: keyof typeof timeframeColor; v: number; label: string }[] = [
+    { tf: 'day', v: 0.7, label: 'День' },
+    { tf: 'week', v: 0.45, label: 'Неделя' },
+    { tf: 'month', v: 0.2, label: 'Месяц' },
+  ];
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.lg }}>
+      {data.map((d) => (
+        <View key={d.tf} style={{ alignItems: 'center', gap: spacing.sm }}>
+          <ProgressRing progress={d.v} size={80} stroke={8} color={timeframeColor[d.tf]} />
+          <Text variant="caption" tone="muted">
+            {d.label}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function FormulaRow({ color, title, text }: { color: string; title: string; text: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: color }} />
+      <Text variant="label" style={{ width: 78 }}>
+        {title}
+      </Text>
+      <Text variant="caption" tone="muted" style={{ flex: 1 }}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+function IlloFormula() {
+  return (
+    <View style={{ gap: spacing.lg, alignSelf: 'stretch', paddingHorizontal: spacing.sm }}>
+      <FormulaRow color={timeframeColor.day} title="День" text="дневные цели — 100%" />
+      <FormulaRow color={timeframeColor.week} title="Неделя" text="½ дни + ½ недельные цели" />
+      <FormulaRow color={timeframeColor.month} title="Месяц" text="½ недели + ½ месячные цели" />
     </View>
   );
 }

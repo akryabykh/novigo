@@ -15,7 +15,7 @@ import { useAuth } from '../../../features/auth/auth-provider';
 import { GoalRow } from '../../../features/goals/GoalRow';
 import { goalsByTimeframe } from '../../../features/goals/select';
 import { useProfile, useUpsertLog, useWorkspace } from '../../../features/queries';
-import { EmptyState, PlusIcon, ProgressRing, Skeleton, Text } from '../../../ui/components';
+import { EmptyState, ProgressRing, Skeleton, Text } from '../../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
@@ -84,31 +84,11 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={c.accent} />}>
         <View style={{ width: '100%', maxWidth: 560, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
           {/* header */}
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingTop: spacing.md,
-            }}>
-            <View>
-              <Text variant="caption" tone="faint">
-                {greeting()}
-              </Text>
-              <Text variant="title">{profile?.firstName ?? '...'}</Text>
-            </View>
-            <Pressable
-              onPress={() => router.push('/(app)/goals/new')}
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: radius.md,
-                backgroundColor: c.accent,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-              <PlusIcon color={c.onAccent} />
-            </Pressable>
+          <View style={{ paddingTop: spacing.md }}>
+            <Text variant="caption" tone="faint">
+              {greeting()}
+            </Text>
+            <Text variant="title">{profile?.firstName ?? '...'}</Text>
           </View>
 
           {isLoading ? (
@@ -121,8 +101,8 @@ export default function HomeScreen() {
             <EmptyState
               emoji="🎯"
               title="Поставь первые цели"
-              subtitle="Создай сессию целей на день, неделю и месяц — и начни двигаться. Отсчёт пойдёт с этого момента."
-              ctaTitle="Создать цели"
+              subtitle="Цели на день, неделю и месяц — и начни двигаться. Отсчёт пойдёт с этого момента."
+              ctaTitle="Поставить цели"
               onCta={() => router.push('/(app)/goals/new')}
             />
           ) : (

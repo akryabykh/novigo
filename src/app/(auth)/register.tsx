@@ -10,7 +10,7 @@ import { Button, Input, Logo, Screen, Text } from '../../ui/components';
 import { spacing } from '../../ui/theme';
 
 export default function RegisterScreen() {
-  const { signUpWithPassword, completeProfile, user } = useAuth();
+  const { signUpWithPassword, completeProfile } = useAuth();
   const router = useRouter();
   const qc = useQueryClient();
 
@@ -37,8 +37,8 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       await signUpWithPassword(email, password);
-      await completeProfile({ firstName, lastName, middleName });
-      if (user?.id) qc.invalidateQueries({ queryKey: qk.profile(user.id) });
+      const profile = await completeProfile({ firstName, lastName, middleName });
+      qc.setQueryData(qk.profile(profile.id), profile);
       router.replace('/(app)');
     } catch (err: any) {
       const msg = String(err?.message ?? '');

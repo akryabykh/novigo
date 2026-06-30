@@ -321,7 +321,7 @@ function EditSection({
           justifyContent: 'center',
         }}>
         <Text variant="label" style={{ color }}>
-          + Добавить цель
+          Добавить цель
         </Text>
       </Pressable>
     </View>
