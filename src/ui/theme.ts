@@ -137,5 +137,28 @@ export function colorsFor(scheme: ColorScheme): ThemeColors {
   return scheme === 'dark' ? darkColors : lightColors;
 }
 
+/** Color coding by goal horizon (day / week / month). */
+export type Timeframe = 'day' | 'week' | 'month';
+export const timeframeColor: Record<Timeframe, string> = {
+  day: '#6366F1', // indigo
+  week: '#14B8A6', // teal
+  month: '#8B5CF6', // violet
+};
+export const timeframeSoft: Record<Timeframe, string> = {
+  day: '#EEF0FF',
+  week: '#E5FBF6',
+  month: '#F2EDFE',
+};
+export const timeframeSoftDark: Record<Timeframe, string> = {
+  day: '#1E1E3A',
+  week: '#0E2A28',
+  month: '#241B3A',
+};
+export const timeframeLabel: Record<Timeframe, string> = {
+  day: 'День',
+  week: 'Неделя',
+  month: 'Месяц',
+};
+
 /** Day-active threshold for streaks (brief §12 default: daily progress >= 80%). */
 export const STREAK_ACTIVE_THRESHOLD = 0.8;

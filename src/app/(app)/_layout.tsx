@@ -12,9 +12,7 @@ export default function AppLayout() {
         animation: 'slide_from_right',
       }}>
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="programs/new" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="programs/[id]" />
-      <Stack.Screen name="log" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="goals/new" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

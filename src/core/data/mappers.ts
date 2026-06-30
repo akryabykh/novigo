@@ -1,5 +1,5 @@
 // Row <-> domain mappers. DB is snake_case; domain is camelCase.
-import type { Achievement, AchievementCode, DailyLog, Profile, Program, Task } from '../domain';
+import type { Achievement, AchievementCode, DailyLog, Goal, GoalSession, Profile } from '../domain';
 
 export interface ProfileRow {
   id: string;
@@ -11,27 +11,23 @@ export interface ProfileRow {
   current_streak: number;
   best_streak: number;
 }
-export interface ProgramRow {
+export interface SessionRow {
   id: string;
   user_id: string;
-  title: string;
-  period: Program['period'];
   start_date: string;
-  end_date: string;
-  status: Program['status'];
+  archived: boolean;
 }
-export interface TaskRow {
+export interface GoalRow {
   id: string;
-  program_id: string;
+  session_id: string;
   title: string;
-  goal_type: Task['goalType'];
+  timeframe: Goal['timeframe'];
   target: number | string;
-  unit: string | null;
   weight: number | string;
 }
 export interface DailyLogRow {
   id: string;
-  task_id: string;
+  goal_id: string;
   date: string;
   value: number | string;
 }
@@ -55,28 +51,23 @@ export const toProfile = (r: ProfileRow): Profile => ({
   bestStreak: r.best_streak,
 });
 
-export const toProgram = (r: ProgramRow): Program => ({
+export const toSession = (r: SessionRow): GoalSession => ({
   id: r.id,
   userId: r.user_id,
-  title: r.title,
-  period: r.period,
   startDate: r.start_date,
-  endDate: r.end_date,
-  status: r.status,
 });
 
-export const toTask = (r: TaskRow): Task => ({
+export const toGoal = (r: GoalRow): Goal => ({
   id: r.id,
-  programId: r.program_id,
+  sessionId: r.session_id,
   title: r.title,
-  goalType: r.goal_type,
+  timeframe: r.timeframe,
   target: num(r.target),
-  unit: r.unit ?? undefined,
   weight: num(r.weight),
 });
 
 export const toDailyLog = (r: DailyLogRow): DailyLog => ({
-  taskId: r.task_id,
+  goalId: r.goal_id,
   date: r.date,
   value: num(r.value),
 });

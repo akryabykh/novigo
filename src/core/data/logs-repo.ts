@@ -2,18 +2,18 @@ import type { DailyLog } from '../domain';
 import { toDailyLog, type DailyLogRow } from './mappers';
 import { supabase } from './supabase';
 
-export async function listLogsByTasks(taskIds: string[]): Promise<DailyLog[]> {
-  if (taskIds.length === 0) return [];
-  const { data, error } = await supabase.from('daily_logs').select('*').in('task_id', taskIds);
+export async function listLogsByGoals(goalIds: string[]): Promise<DailyLog[]> {
+  if (goalIds.length === 0) return [];
+  const { data, error } = await supabase.from('daily_logs').select('*').in('goal_id', goalIds);
   if (error) throw error;
   return (data as DailyLogRow[]).map(toDailyLog);
 }
 
-/** Upsert today's (or any date's) value for a task. Unique(task_id, date). */
-export async function upsertLog(taskId: string, date: string, value: number): Promise<DailyLog> {
+/** Upsert a date's value for a goal. Unique(goal_id, date). */
+export async function upsertLog(goalId: string, date: string, value: number): Promise<DailyLog> {
   const { data, error } = await supabase
     .from('daily_logs')
-    .upsert({ task_id: taskId, date, value }, { onConflict: 'task_id,date' })
+    .upsert({ goal_id: goalId, date, value }, { onConflict: 'goal_id,date' })
     .select('*')
     .single();
   if (error) throw error;
