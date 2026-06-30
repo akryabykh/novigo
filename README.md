@@ -1,56 +1,93 @@
-# Welcome to your Expo app 👋
+# Novigo
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Кросс-платформенный трекер целей: вы создаёте **программу** на период (неделя / 2 недели / месяц), разбиваете её на **задачи** с весами (в сумме 100%), каждый день отмечаете прогресс — а приложение считает взвешенный прогресс, серии (streak), XP и уровни.
 
-## Get started
+Один кодбейс на **web / iOS / Android** (Expo + react-native-web). Сейчас собран и проверен веб; мобильные сборки — через EAS позже, код к этому готов.
 
-1. Install dependencies
+## Стек
 
-   ```bash
-   npm install
-   ```
+- **Expo SDK 56** + React Native + **Expo Router** (web через react-native-web)
+- **NativeWind** (Tailwind для RN) + дизайн-токены в одном месте (`src/ui/theme.ts`)
+- **Supabase** — Postgres + Auth + RLS
+- **zod** (валидация) + **@tanstack/react-query** (серверное состояние)
+- Бизнес-логика (прогресс / стрики / XP) — чистые функции в `src/core/logic`
 
-2. Start the app
+## Архитектура
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+src/
+  app/                 # экраны (Expo Router): (auth) и (app)/(tabs)
+  core/
+    domain/            # типы сущностей
+    logic/             # ЧИСТАЯ бизнес-логика (прогресс, стрики, XP) — юнит-тестируемо
+    data/              # Supabase-клиент + репозитории (CRUD) + мапперы
+    validation/        # zod-схемы
+  ui/                  # дизайн-токены (theme.ts) + компоненты (NativeWind)
+  features/            # auth, programs, gamification, profile (хуки react-query, движок геймификации)
+supabase/migrations/   # 0001_init.sql — схема + RLS
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+UI один на все платформы и тонкий: расчёты живут в `core/logic`, экраны их только вызывают.
 
-### Other setup steps
+## Setup
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+### 1. Зависимости
+```bash
+npm install
+```
 
-## Learn more
+### 2. Проект Supabase
+1. Создайте проект на https://supabase.com (отдельный, изолированный).
+2. **SQL Editor** → вставьте и выполните `supabase/migrations/0001_init.sql`.
+3. **Authentication → Providers → Email**: включите вход по email+паролю и подтверждение email (OTP-код).
+4. (Опц.) **Authentication → URL Configuration** добавьте URL вашего веб-деплоя в Redirect URLs — для ссылок сброса пароля.
 
-To learn more about developing your project with Expo, look at the following resources:
+### 3. Переменные окружения
+```bash
+cp .env.example .env
+```
+Заполните из **Project Settings → API**:
+```
+EXPO_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon public key>
+```
+> Пока ключи — заглушки, приложение показывает экран настройки вместо входа.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 4. Запуск (web)
+```bash
+npx expo start --web
+```
 
-## Join the community
+## Скрипты
 
-Join our community of developers creating universal apps.
+| Команда | Действие |
+|---|---|
+| `npx expo start --web` | дев-сервер (веб) |
+| `npx expo export --platform web` | production-сборка в `dist/` |
+| `npx tsc --noEmit` | проверка типов |
+| `npx expo lint` | ESLint |
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Деплой веба на Vercel
+
+Сборка — статический SPA (`web.output: "single"` в `app.json`).
+
+1. `npx expo export --platform web` → артефакт в `dist/`.
+2. На Vercel: **Build Command** `npx expo export --platform web`, **Output Directory** `dist`.
+3. Добавьте переменные `EXPO_PUBLIC_SUPABASE_URL` и `EXPO_PUBLIC_SUPABASE_ANON_KEY` в Project → Settings → Environment Variables.
+4. SPA-роутинг: все пути отдаются на `index.html` (Expo export это уже учитывает).
+
+## iOS / Android (позже)
+
+Код platform-agnostic. Для мобильных сборок:
+```bash
+npm i -g eas-cli
+eas build:configure
+eas build --platform ios     # / android
+```
+Push, виджеты, Apple Health / Google Fit, друзья и челленджи заложены модульно, но в MVP не реализованы.
+
+## Геймификация (правила)
+
+- **Активный день** для стрика — дневной прогресс ≥ 80% (`STREAK_ACTIVE_THRESHOLD` в `src/ui/theme.ts`).
+- **XP:** +10 за выполненную задачу, +5 за 100% дня, +100 за завершённую программу. Кривая уровней — `levelFromXp` в `core/logic`.
+- XP/уровни/стрики **пересчитываются из данных** (идемпотентно) при каждом изменении — без двойного начисления.
