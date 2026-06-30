@@ -108,17 +108,13 @@ function weighted(goals: Goal[], fn: (g: Goal) => number): number | null {
 function only(goals: Goal[], tf: Timeframe): Goal[] {
   return goals.filter((g) => g.timeframe === tf);
 }
-/** Среднее непустых частей; null если все пусты. */
-function avg(parts: (number | null)[]): number | null {
-  const present = parts.filter((x): x is number => x != null);
-  return present.length ? present.reduce((a, b) => a + b, 0) / present.length : null;
-}
-/** Связка двух частей 50/50; пустая часть выпадает, оставшаяся берёт всё. */
+/**
+ * Связка 50/50 с ФИКСИРОВАННЫМИ долями: отсутствующая половина считается за 0
+ * (не перенормируется). Так «идеальный день = 1/7 от 50%», а не от 100%.
+ */
 function blendHalf(a: number | null, b: number | null): number | null {
   if (a == null && b == null) return null;
-  if (a == null) return b;
-  if (b == null) return a;
-  return 0.5 * a + 0.5 * b;
+  return 0.5 * (a ?? 0) + 0.5 * (b ?? 0);
 }
 
 // ---------- ПРОГРЕСС ПО ГОРИЗОНТАМ ----------
@@ -147,20 +143,24 @@ function monthGoalsProgress(
   return weighted(only(goals, 'month'), (g) => clamp01(sumInRange(g.id, logs, start, asOf) / g.target));
 }
 
-/** Кольцо недели weekIndex: 50% дневные на этой неделе + 50% недельные. null если неделя не началась. */
+/**
+ * Кольцо недели weekIndex: 50% дневные + 50% недельные.
+ * Дневная половина — сумма дневных колец за 7 дней недели / 7 (идеальный день = 1/7),
+ * будущие дни просто 0. Знаменатель фиксированный, поэтому неделя наполняется постепенно.
+ */
 export function weekRingFor(
   session: GoalSession,
   goals: Goal[],
   logs: DailyLog[],
   weekIndex: number,
-  today: string,
 ): number | null {
-  const asOf = clampAsOf(session.startDate, today);
   const { start: wStart, end: wEnd } = weekRange(session.startDate, weekIndex);
-  if (asOf < wStart) return null; // ещё не началась
-  const end = asOf < wEnd ? asOf : wEnd;
-  const dayPart = avg(enumerateDates(wStart, end).map((d) => dayGoalsOn(goals, logs, d)));
-  const weekPart = weekGoalsProgress(goals, logs, wStart, end);
+  const dayPart =
+    only(goals, 'day').length === 0
+      ? null
+      : enumerateDates(wStart, wEnd).reduce((s, d) => s + (dayGoalsOn(goals, logs, d) ?? 0), 0) /
+        WEEK_DAYS;
+  const weekPart = weekGoalsProgress(goals, logs, wStart, wEnd);
   return blendHalf(dayPart, weekPart);
 }
 
@@ -181,12 +181,18 @@ export function computeRings(
   const day = dayGoalsOn(goals, logs, asOf) ?? 0;
 
   const wi = currentWeekIndex(session.startDate, asOf);
-  const week = weekRingFor(session, goals, logs, wi, today) ?? 0;
+  const week = weekRingFor(session, goals, logs, wi) ?? 0;
 
-  const weekRings: (number | null)[] = [];
-  for (let i = 0; i <= wi; i++) weekRings.push(weekRingFor(session, goals, logs, i, today));
-  const weeksPart = avg(weekRings);
-  const monthPart = monthGoalsProgress(goals, logs, session.startDate, asOf);
+  // Месяц завязан на НЕДЕЛИ (не на дни напрямую): 50% — среднее результатов 4 недель
+  // (фиксированный знаменатель 4, незавершённые недели = 0), 50% — месячные цели.
+  const hasDayOrWeek = only(goals, 'day').length > 0 || only(goals, 'week').length > 0;
+  let weeksPart: number | null = null;
+  if (hasDayOrWeek) {
+    let s = 0;
+    for (let i = 0; i < WEEKS_IN_SESSION; i++) s += weekRingFor(session, goals, logs, i) ?? 0;
+    weeksPart = s / WEEKS_IN_SESSION;
+  }
+  const monthPart = monthGoalsProgress(goals, logs, session.startDate, sessionEnd(session.startDate));
   const month = blendHalf(weeksPart, monthPart) ?? 0;
 
   return { day, week, month };

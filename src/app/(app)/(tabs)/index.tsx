@@ -4,7 +4,13 @@ import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { DailyLog, Timeframe } from '../../../core/domain';
-import { computeRings, daysRemaining, todayISO } from '../../../core/logic';
+import {
+  computeRings,
+  currentWeekIndex,
+  dayIndex,
+  daysRemaining,
+  todayISO,
+} from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { GoalRow } from '../../../features/goals/GoalRow';
 import { goalsByTimeframe } from '../../../features/goals/select';
@@ -49,6 +55,15 @@ export default function HomeScreen() {
     () => (ws?.session ? computeRings(ws.session, ws.goals, mergedLogs, today) : null),
     [ws, mergedLogs, today],
   );
+
+  const ringLabels = useMemo<Record<Timeframe, string>>(() => {
+    if (!ws?.session) return { day: 'День', week: 'Неделя', month: 'Месяц' };
+    return {
+      day: `День ${dayIndex(ws.session.startDate, today) + 1}`,
+      week: `Неделя ${currentWeekIndex(ws.session.startDate, today) + 1}`,
+      month: 'Месяц',
+    };
+  }, [ws, today]);
 
   const save = (goalId: string, todayValue: number) => {
     setOverrides((o) => ({ ...o, [goalId]: todayValue }));
@@ -140,7 +155,7 @@ export default function HomeScreen() {
                       <Text
                         variant="label"
                         style={{ color: active ? timeframeColor[tf] : c.textMuted }}>
-                        {timeframeLabel[tf]}
+                        {ringLabels[tf]}
                       </Text>
                     </Pressable>
                   );
