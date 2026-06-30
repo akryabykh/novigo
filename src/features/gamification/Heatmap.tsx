@@ -3,7 +3,6 @@ import { View } from 'react-native';
 import type { DailyLog, Program, Task } from '../../core/domain';
 import { addDays, todayISO } from '../../core/logic';
 import { Text } from '../../ui/components';
-import { radius } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 import { dayProgress } from './engine';
 

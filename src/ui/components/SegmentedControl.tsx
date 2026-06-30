@@ -11,7 +11,7 @@ export interface Segment<T extends string> {
 }
 
 export interface SegmentedControlProps<T extends string> {
-  segments: ReadonlyArray<Segment<T>>;
+  segments: readonly Segment<T>[];
   value: T;
   onChange: (v: T) => void;
 }

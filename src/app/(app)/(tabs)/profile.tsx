@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { nameSchema, passwordSchema } from '../../../core/validation';
@@ -29,19 +29,17 @@ export default function ProfileScreen() {
   const { data: profile } = useProfile(uid);
   const updateNames = useUpdateNames(uid);
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [middleName, setMiddleName] = useState('');
+  // Edited fields are stored as overrides on top of the loaded profile,
+  // so we never sync server data into state via an effect.
+  const [draft, setDraft] = useState<{ firstName?: string; lastName?: string; middleName?: string }>({});
+  const firstName = draft.firstName ?? profile?.firstName ?? '';
+  const lastName = draft.lastName ?? profile?.lastName ?? '';
+  const middleName = draft.middleName ?? profile?.middleName ?? '';
+  const setFirstName = (v: string) => setDraft((d) => ({ ...d, firstName: v }));
+  const setLastName = (v: string) => setDraft((d) => ({ ...d, lastName: v }));
+  const setMiddleName = (v: string) => setDraft((d) => ({ ...d, middleName: v }));
   const [nameMsg, setNameMsg] = useState<string | null>(null);
   const [nameErr, setNameErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (profile) {
-      setFirstName(profile.firstName ?? '');
-      setLastName(profile.lastName ?? '');
-      setMiddleName(profile.middleName ?? '');
-    }
-  }, [profile]);
 
   const saveNames = () => {
     setNameErr(null);

@@ -6,6 +6,25 @@ import { radius, spacing, typography } from '../theme';
 import { useColors } from '../theme-provider';
 import { Text } from './Text';
 
+function StepButton({ label, onPress }: { label: string; onPress: () => void }) {
+  const c = useColors();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({
+        width: 44,
+        height: 44,
+        borderRadius: radius.md,
+        backgroundColor: c.surfaceAlt,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.8 : 1,
+      })}>
+      <Text style={{ fontFamily: typography.bold, fontSize: 22, color: c.text }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export interface StepperProps {
   value: number;
   onChange: (v: number) => void;
@@ -28,25 +47,9 @@ export function Stepper({ value, onChange, step = 1, min = 0, max, unit }: Stepp
     onChange(next);
   };
 
-  const Btn = ({ label, delta }: { label: string; delta: number }) => (
-    <Pressable
-      onPress={() => tick(delta)}
-      style={({ pressed }) => ({
-        width: 44,
-        height: 44,
-        borderRadius: radius.md,
-        backgroundColor: c.surfaceAlt,
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: pressed ? 0.8 : 1,
-      })}>
-      <Text style={{ fontFamily: typography.bold, fontSize: 22, color: c.text }}>{label}</Text>
-    </Pressable>
-  );
-
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-      <Btn label="−" delta={-step} />
+      <StepButton label="−" onPress={() => tick(-step)} />
       <View style={{ flex: 1, alignItems: 'center' }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
           <TextInput
@@ -72,7 +75,7 @@ export function Stepper({ value, onChange, step = 1, min = 0, max, unit }: Stepp
           ) : null}
         </View>
       </View>
-      <Btn label="+" delta={step} />
+      <StepButton label="+" onPress={() => tick(step)} />
     </View>
   );
 }

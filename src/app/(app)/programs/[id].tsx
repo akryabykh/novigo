@@ -12,10 +12,10 @@ import {
   Chip,
   ProgressBar,
   ProgressRing,
+  Screen,
   Skeleton,
   Text,
 } from '../../../ui/components';
-import { Screen } from '../../../ui/components';
 import { spacing } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
