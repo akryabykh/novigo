@@ -4,12 +4,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createGoals,
   createSession,
+  deleteGoal,
   deleteSession,
   getActiveSession,
   getProfile,
   listAchievements,
   listGoalsBySessions,
   listLogsByGoals,
+  updateGoal,
   updateProfileNames,
   upsertLog,
   type NewGoal,
@@ -86,6 +88,30 @@ export function useUpsertLog(uid: string | undefined) {
       const log = await upsertLog(input.goalId, input.date, input.value);
       if (uid) await syncGamification(uid);
       return log;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export interface GoalUpdate {
+  id: string;
+  title: string;
+  target: number;
+  weight: number;
+}
+export function useSaveGoals(uid: string | undefined) {
+  const invalidate = useInvalidateAll(uid);
+  return useMutation({
+    mutationFn: async (input: {
+      sessionId: string;
+      updates: GoalUpdate[];
+      creates: NewGoal[];
+      deletes: string[];
+    }) => {
+      for (const u of input.updates) await updateGoal(u.id, u);
+      for (const id of input.deletes) await deleteGoal(id);
+      if (input.creates.length) await createGoals(input.sessionId, input.creates);
+      if (uid) await syncGamification(uid);
     },
     onSuccess: invalidate,
   });

@@ -34,6 +34,17 @@ export async function createGoals(sessionId: string, goals: NewGoal[]): Promise<
   return (data as GoalRow[]).map(toGoal);
 }
 
+export async function updateGoal(
+  id: string,
+  patch: { title: string; target: number; weight: number },
+): Promise<void> {
+  const { error } = await supabase
+    .from('goals')
+    .update({ title: patch.title, target: patch.target, weight: patch.weight })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function deleteGoal(id: string): Promise<void> {
   const { error } = await supabase.from('goals').delete().eq('id', id);
   if (error) throw error;

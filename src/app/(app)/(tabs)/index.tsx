@@ -162,8 +162,15 @@ export default function HomeScreen() {
                 })}
               </View>
 
-              <Text variant="caption" tone="faint" style={{ textAlign: 'center' }}>
-                Сессия · осталось {daysRemaining(ws.session.startDate, today)} дн.
+              <Text
+                variant="caption"
+                tone="faint"
+                style={{ textAlign: 'center' }}
+                onPress={() => router.push('/(app)/goals/edit')}>
+                Сессия · осталось {daysRemaining(ws.session.startDate, today)} дн. ·{' '}
+                <Text variant="caption" tone="accent">
+                  настроить
+                </Text>
               </Text>
 
               {/* selected horizon goals with inline +/- */}

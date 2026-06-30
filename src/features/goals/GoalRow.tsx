@@ -1,12 +1,11 @@
-// Goal card with inline +/- logging. The +/- (and the editable number) move the
-// goal's current period total; under the hood they edit TODAY's value, so you
-// can't undo past days and can't overshoot the target. Color-coded by horizon.
+// Goal card with inline +/- logging. The stepper edits TODAY's value (you can't
+// undo past days, can't overshoot the period target). Minimal, lots of air.
 import * as Haptics from 'expo-haptics';
 import { Platform, Pressable, TextInput, View } from 'react-native';
 
 import type { DailyLog, Goal, GoalSession } from '../../core/domain';
 import { goalCardProgress, goalCurrent, goalMaxToday, goalToday } from '../../core/logic';
-import { Card, CheckIcon, ProgressBar, Text } from '../../ui/components';
+import { Card, ProgressBar, Text } from '../../ui/components';
 import { radius, spacing, timeframeColor, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 
@@ -16,12 +15,14 @@ export function GoalRow({
   logs,
   today,
   onSave,
+  readOnly,
 }: {
   session: GoalSession;
   goal: Goal;
   logs: DailyLog[];
   today: string;
-  onSave: (goalId: string, todayValue: number) => void;
+  onSave?: (goalId: string, todayValue: number) => void;
+  readOnly?: boolean;
 }) {
   const c = useColors();
   const color = timeframeColor[goal.timeframe];
@@ -31,92 +32,62 @@ export function GoalRow({
   const maxToday = goalMaxToday(session, goal, logs, today);
   const progress = goalCardProgress(session, goal, logs, today);
   const done = current >= goal.target;
-  const others = current - todayVal; // накоплено за прошлые дни периода (нельзя убрать)
 
   const setTodayTo = (v: number) => {
     const clamped = Math.max(0, Math.min(v, maxToday));
     if (clamped !== todayVal && Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
-    onSave(goal.id, clamped);
+    onSave?.(goal.id, clamped);
   };
-  const setCurrentTo = (target: number) => setTodayTo(target - others);
 
   return (
-    <Card padded={false} style={{ overflow: 'hidden' }}>
-      <View style={{ flexDirection: 'row' }}>
-        <View style={{ width: 4, backgroundColor: color }} />
-        <View style={{ flex: 1, padding: spacing.lg, gap: spacing.md }}>
-          {/* title + status */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-            <Text variant="heading" style={{ flex: 1 }} numberOfLines={1}>
-              {goal.title}
-            </Text>
-            {done ? (
-              <View
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  backgroundColor: color,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <CheckIcon color="#fff" size={15} strokeWidth={3} />
-              </View>
-            ) : null}
-          </View>
+    <Card>
+      <View style={{ gap: spacing.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+          <Text variant="label" style={{ flex: 1 }} numberOfLines={1}>
+            {goal.title}
+          </Text>
+          <Text variant="caption" style={{ color: done ? color : c.textFaint }}>
+            {Math.round(current * 100) / 100} / {goal.target}
+          </Text>
+        </View>
 
-          <ProgressBar progress={progress} color={color} />
+        <ProgressBar progress={progress} color={color} />
 
-          {/* stepper */}
+        {!readOnly ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <StepBtn label="−" onPress={() => setTodayTo(todayVal - 1)} disabled={todayVal <= 0} />
-            <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
               <TextInput
-                value={String(Math.round(current * 100) / 100)}
+                value={String(todayVal)}
                 keyboardType="numeric"
                 selectTextOnFocus
                 onChangeText={(t) => {
                   const n = parseFloat(t.replace(',', '.'));
-                  setCurrentTo(Number.isFinite(n) ? n : others);
+                  setTodayTo(Number.isFinite(n) ? n : 0);
                 }}
                 style={{
                   fontFamily: typography.bold,
                   fontSize: typography.size['2xl'],
                   color: c.text,
                   minWidth: 40,
-                  textAlign: 'right',
+                  textAlign: 'center',
                   padding: 0,
                 }}
               />
-              <Text style={{ fontFamily: typography.semibold, fontSize: typography.size.lg, color: c.textFaint }}>
-                {' / '}
-                {goal.target}
+              <Text variant="caption" tone="faint">
+                сегодня
               </Text>
             </View>
-            <StepBtn
-              label="+"
-              filled={color}
-              onPress={() => setTodayTo(todayVal + 1)}
-              disabled={todayVal >= maxToday}
-            />
+            <StepBtn label="+" onPress={() => setTodayTo(todayVal + 1)} disabled={todayVal >= maxToday} />
           </View>
-        </View>
+        ) : null}
       </View>
     </Card>
   );
 }
 
-function StepBtn({
-  label,
-  onPress,
-  disabled,
-  filled,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  filled?: string;
-}) {
+function StepBtn({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   const c = useColors();
   return (
     <Pressable
@@ -126,20 +97,12 @@ function StepBtn({
         width: 46,
         height: 46,
         borderRadius: radius.md,
-        backgroundColor: filled ?? c.surfaceAlt,
+        backgroundColor: c.surfaceAlt,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: disabled ? 0.35 : pressed ? 0.8 : 1,
+        opacity: disabled ? 0.4 : pressed ? 0.8 : 1,
       })}>
-      <Text
-        style={{
-          fontFamily: typography.bold,
-          fontSize: 24,
-          lineHeight: 28,
-          color: filled ? '#fff' : c.text,
-        }}>
-        {label}
-      </Text>
+      <Text style={{ fontFamily: typography.bold, fontSize: 22, color: c.text }}>{label}</Text>
     </Pressable>
   );
 }
