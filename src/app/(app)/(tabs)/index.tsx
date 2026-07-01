@@ -8,6 +8,7 @@ import {
   computeRings,
   endOfWeek,
   enumerateDates,
+  goalCurrent,
   goalMaxOnDate,
   goalsForScope,
   startOfWeek,
@@ -118,6 +119,12 @@ export default function HomeScreen() {
   };
 
   const selectedGoals = ws ? goalsForScope(ws.goals, scope, refDate) : [];
+  // completed goals sink to the bottom (stable within groups)
+  const orderedGoals = [...selectedGoals].sort((a, b) => {
+    const da = goalCurrent(a, mergedLogs, refDate) >= a.target ? 1 : 0;
+    const db = goalCurrent(b, mergedLogs, refDate) >= b.target ? 1 : 0;
+    return da - db;
+  });
   const scopeGoals = ws ? ws.goals.filter((g) => g.timeframe === scope) : [];
   const hasAnyGoals = !!ws && ws.goals.length > 0;
 
@@ -286,7 +293,7 @@ export default function HomeScreen() {
                       />
                     ) : (
                       <View style={{ gap: spacing.md }}>
-                        {selectedGoals.map((g) => (
+                        {orderedGoals.map((g) => (
                           <GoalRow
                             key={g.id}
                             goal={g}

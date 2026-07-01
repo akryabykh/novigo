@@ -42,11 +42,14 @@ export function GoalRow({
 
   return (
     <Card>
-      <View style={{ gap: spacing.sm }}>
+      <View style={{ gap: spacing.md }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
           <Text variant="label" style={{ flex: 1 }} numberOfLines={1}>
             {goal.title}
+          </Text>
+          <Text variant="caption" style={{ color: done ? color : c.textFaint }}>
+            {Math.round(current * 100) / 100} / {goal.target}
           </Text>
           {onEdit ? (
             <Text variant="caption" tone="accent" onPress={onEdit}>
@@ -58,21 +61,13 @@ export function GoalRow({
         {!readOnly ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <StepBtn label="−" onPress={() => setTodayTo(todayVal - 1)} disabled={todayVal <= 0} />
-            <View style={{ flex: 1, alignItems: 'center', gap: spacing.xs }}>
-              <Text style={{ fontFamily: typography.bold, fontSize: typography.size.xl, color: done ? color : c.text }}>
-                {Math.round(current * 100) / 100} / {goal.target}
-              </Text>
+            <View style={{ flex: 1 }}>
               <ProgressBar progress={progress} color={color} />
             </View>
             <StepBtn label="+" onPress={() => setTodayTo(todayVal + 1)} disabled={todayVal >= maxToday} />
           </View>
         ) : (
-          <View style={{ gap: spacing.xs }}>
-            <Text style={{ fontFamily: typography.bold, fontSize: typography.size.xl, color: done ? color : c.text }}>
-              {Math.round(current * 100) / 100} / {goal.target}
-            </Text>
-            <ProgressBar progress={progress} color={color} />
-          </View>
+          <ProgressBar progress={progress} color={color} />
         )}
       </View>
     </Card>

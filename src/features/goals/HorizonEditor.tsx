@@ -6,7 +6,7 @@ import { Pressable, View } from 'react-native';
 
 import type { NewGoal } from '../../core/data';
 import type { Goal, Timeframe } from '../../core/domain';
-import { addDays, validateWeights } from '../../core/logic';
+import { addDays, endOfMonth, endOfWeek, validateWeights } from '../../core/logic';
 import type { GoalUpdate } from '../queries';
 import { Button, Card, Input, ProgressBar, Text } from '../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
@@ -89,20 +89,26 @@ export function HorizonEditor({
   );
   const [error, setError] = useState<string | null>(null);
 
+  // period end for a "one-time" goal: just this day / this week / this month
+  const oneTimeEnd = (start: string): string =>
+    scope === 'day' ? start : scope === 'week' ? endOfWeek(start) : endOfMonth(start);
+
+  const equalize = (list: Row[]): Row[] => {
+    const n = list.length;
+    if (n === 0) return list;
+    const each = Math.floor((100 / n) * 10) / 10;
+    return list.map((x, i) => ({
+      ...x,
+      weight: String(i === 0 ? Math.round((100 - each * (n - 1)) * 10) / 10 : each),
+    }));
+  };
+
   const update = (key: string, patch: Partial<Row>) =>
     setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
-  const add = () => setRows((r) => [...r, blankRow(defaultStart)]);
+  // adding a goal re-splits weights equally across all goals (user can tweak after)
+  const add = () => setRows((r) => equalize([...r, blankRow(defaultStart)]));
   const remove = (key: string) => setRows((r) => r.filter((x) => x.key !== key));
-  const distribute = () =>
-    setRows((r) => {
-      const n = r.length;
-      if (n === 0) return r;
-      const each = Math.floor((100 / n) * 10) / 10;
-      return r.map((x, i) => ({
-        ...x,
-        weight: String(i === 0 ? Math.round((100 - each * (n - 1)) * 10) / 10 : each),
-      }));
-    });
+  const distribute = () => setRows((r) => equalize(r));
 
   const sum = rows.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0);
   const remaining = Math.round((100 - sum) * 10) / 10;
@@ -166,7 +172,8 @@ export function HorizonEditor({
         color={remaining < 0 ? c.danger : sum === 100 ? c.success : color}
       />
       <Text variant="caption" tone="faint">
-        Новые цели начнутся с {fmtDay(defaultStart)}, действуют «навсегда» или до выбранной даты.
+        Новые цели начнутся с {fmtDay(defaultStart)}. Период: только этот{' '}
+        {scope === 'day' ? 'день' : scope === 'week' ? 'неделя' : 'месяц'}, навсегда или до даты.
       </Text>
 
       {rows.map((r) => (
@@ -197,16 +204,27 @@ export function HorizonEditor({
                   placeholder="вес %"
                 />
               </View>
+              <Chip
+                label={scope === 'day' ? 'Только этот день' : scope === 'week' ? 'Только эта неделя' : 'Только этот месяц'}
+                active={r.endDate === oneTimeEnd(r.startDate)}
+                color={color}
+                onPress={() => update(r.key, { endDate: oneTimeEnd(r.startDate) })}
+              />
               <Chip label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
               <Chip
                 label="До даты"
-                active={!!r.endDate}
+                active={!!r.endDate && r.endDate !== oneTimeEnd(r.startDate)}
                 color={color}
-                onPress={() => update(r.key, { endDate: r.endDate ?? addMonths(r.startDate, 1) })}
+                onPress={() =>
+                  update(r.key, {
+                    endDate:
+                      r.endDate && r.endDate !== oneTimeEnd(r.startDate) ? r.endDate : addMonths(r.startDate, 1),
+                  })
+                }
               />
             </View>
 
-            {r.endDate ? (
+            {r.endDate && r.endDate !== oneTimeEnd(r.startDate) ? (
               <View style={{ gap: spacing.sm }}>
                 <Input
                   value={r.endDate}
@@ -317,8 +335,17 @@ function NumberPicker({
         </Text>
       </Pressable>
       {open ? (
-        <View style={{ marginTop: 6, flexDirection: 'row', flexWrap: 'wrap', gap: 6, maxWidth: 190 }}>
-          {nums.map((n) => {
+        <View
+          style={{
+            marginTop: 6,
+            width: 120,
+            borderWidth: 1.5,
+            borderColor: c.border,
+            borderRadius: radius.md,
+            backgroundColor: c.surface,
+            overflow: 'hidden',
+          }}>
+          {nums.map((n, idx) => {
             const active = n === shown;
             return (
               <Pressable
@@ -328,14 +355,11 @@ function NumberPicker({
                   setOpen(false);
                 }}
                 style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: radius.md,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderWidth: 1.5,
-                  borderColor: active ? color : c.border,
+                  paddingVertical: 10,
+                  paddingHorizontal: spacing.md,
                   backgroundColor: active ? c.surfaceAlt : 'transparent',
+                  borderTopWidth: idx ? 1 : 0,
+                  borderTopColor: c.border,
                 }}>
                 <Text variant="label" style={{ color: active ? color : c.text }}>
                   {n}
