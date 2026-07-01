@@ -14,8 +14,8 @@ import {
   todayISO,
 } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
-import { GoalEditForm, type GoalDraft } from '../../../features/goals/GoalEditForm';
 import { GoalRow } from '../../../features/goals/GoalRow';
+import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
 import { useProfile, useSaveGoals, useUpsertLog, useWorkspace } from '../../../features/queries';
 import { Button, EmptyState, ProgressRing, Skeleton, Text } from '../../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
@@ -85,8 +85,7 @@ export default function HomeScreen() {
   const [refDate, setRefDate] = useState<string>(today);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   // merge optimistic per-(goal,date) overrides over server logs
   const mergedLogs = useMemo<DailyLog[]>(() => {
@@ -128,31 +127,14 @@ export default function HomeScreen() {
   };
 
   const selectedGoals = ws ? goalsForScope(ws.goals, scope, refDate) : [];
+  const scopeGoals = ws ? ws.goals.filter((g) => g.timeframe === scope) : [];
   const hasAnyGoals = !!ws && ws.goals.length > 0;
 
   const fillAll = () => selectedGoals.forEach((g) => save(g.id, goalMaxOnDate(g, mergedLogs, refDate)));
   const clearAll = () => selectedGoals.forEach((g) => save(g.id, 0));
 
-  const closeEditors = () => {
-    setEditingId(null);
-    setAdding(false);
-  };
-  const submitNew = (d: GoalDraft) =>
-    saveGoals.mutate(
-      {
-        updates: [],
-        creates: [{ ...d, timeframe: scope, startDate: today }],
-        deletes: [],
-      },
-      { onSuccess: closeEditors },
-    );
-  const submitEdit = (id: string, d: GoalDraft) =>
-    saveGoals.mutate(
-      { updates: [{ id, title: d.title, target: d.target, weight: d.weight, endDate: d.endDate }], creates: [], deletes: [] },
-      { onSuccess: closeEditors },
-    );
-  const submitDelete = (id: string) =>
-    saveGoals.mutate({ updates: [], creates: [], deletes: [id] }, { onSuccess: closeEditors });
+  const submitHorizon = (payload: SavePayload) =>
+    saveGoals.mutate(payload, { onSuccess: () => setEditing(false) });
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
@@ -256,7 +238,7 @@ export default function HomeScreen() {
                       key={tf}
                       onPress={() => {
                         setScope(tf);
-                        closeEditors();
+                        setEditing(false);
                       }}
                       style={{
                         flex: 1,
@@ -283,71 +265,58 @@ export default function HomeScreen() {
                   <Skeleton height={96} rounded={radius.lg} />
                 </View>
               ) : (
-                <>
-                  {/* goals header */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
-                    <Text variant="heading" style={{ flex: 1 }}>
-                      Цели · {timeframeLabel[scope].toLowerCase()}
-                    </Text>
-                  </View>
+                editing ? (
+                  <HorizonEditor
+                    scope={scope}
+                    existing={scopeGoals}
+                    onSave={submitHorizon}
+                    onCancel={() => setEditing(false)}
+                    saving={saveGoals.isPending}
+                  />
+                ) : (
+                  <>
+                    {/* goals header */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
+                      <Text variant="heading" style={{ flex: 1 }}>
+                        Цели · {timeframeLabel[scope].toLowerCase()}
+                      </Text>
+                      {scopeGoals.length > 0 ? (
+                        <Text variant="caption" tone="accent" onPress={() => setEditing(true)}>
+                          Изменить
+                        </Text>
+                      ) : null}
+                    </View>
 
-                  {!hasAnyGoals && !adding ? (
-                    <EmptyState
-                      emoji="🎯"
-                      title="Поставь цели"
-                      subtitle="Задай цели на день, неделю и месяц — кольца начнут заполняться."
-                      ctaTitle="Поставить цель"
-                      onCta={() => setAdding(true)}
-                    />
-                  ) : (
-                    <View style={{ gap: spacing.md }}>
-                      {selectedGoals.map((g) =>
-                        editingId === g.id ? (
-                          <GoalEditForm
-                            key={g.id}
-                            timeframe={scope}
-                            minEnd={g.startDate}
-                            initial={{ title: g.title, target: g.target, weight: g.weight, endDate: g.endDate }}
-                            onSubmit={(d) => submitEdit(g.id, d)}
-                            onCancel={closeEditors}
-                            onDelete={() => submitDelete(g.id)}
-                            saving={saveGoals.isPending}
-                          />
-                        ) : (
+                    {!hasAnyGoals ? (
+                      <EmptyState
+                        emoji="🎯"
+                        title="Поставь цели"
+                        subtitle="Задай цели на день, неделю и месяц — кольца начнут заполняться."
+                        ctaTitle="Поставить цели"
+                        onCta={() => setEditing(true)}
+                      />
+                    ) : (
+                      <View style={{ gap: spacing.md }}>
+                        {selectedGoals.map((g) => (
                           <GoalRow
                             key={g.id}
                             goal={g}
                             logs={mergedLogs}
                             date={refDate}
                             onSave={save}
-                            onEdit={() => {
-                              setAdding(false);
-                              setEditingId(g.id);
-                            }}
+                            onEdit={() => setEditing(true)}
                           />
-                        ),
-                      )}
+                        ))}
 
-                      {selectedGoals.length === 0 && !adding ? (
-                        <Text variant="body" tone="muted">
-                          На «{timeframeLabel[scope].toLowerCase()}» целей нет.
-                        </Text>
-                      ) : null}
+                        {selectedGoals.length === 0 ? (
+                          <Text variant="body" tone="muted">
+                            На «{timeframeLabel[scope].toLowerCase()}» целей нет.
+                          </Text>
+                        ) : null}
 
-                      {adding ? (
-                        <GoalEditForm
-                          timeframe={scope}
-                          onSubmit={submitNew}
-                          onCancel={closeEditors}
-                          saving={saveGoals.isPending}
-                        />
-                      ) : (
                         <Pressable
-                          onPress={() => {
-                            setEditingId(null);
-                            setAdding(true);
-                          }}
+                          onPress={() => setEditing(true)}
                           style={{
                             height: 46,
                             borderRadius: radius.md,
@@ -361,22 +330,22 @@ export default function HomeScreen() {
                             Добавить цель · {timeframeLabel[scope].toLowerCase()}
                           </Text>
                         </Pressable>
-                      )}
 
-                      {/* bulk actions for the selected day */}
-                      {selectedGoals.length > 0 && !adding && !editingId ? (
-                        <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                          <View style={{ flex: 1 }}>
-                            <Button title="Выполнить всё" variant="secondary" onPress={fillAll} />
+                        {/* bulk actions for the selected day */}
+                        {selectedGoals.length > 0 ? (
+                          <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                            <View style={{ flex: 1 }}>
+                              <Button title="Выполнить всё" variant="secondary" onPress={fillAll} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Button title="Очистить" variant="ghost" onPress={clearAll} />
+                            </View>
                           </View>
-                          <View style={{ flex: 1 }}>
-                            <Button title="Очистить" variant="ghost" onPress={clearAll} />
-                          </View>
-                        </View>
-                      ) : null}
-                    </View>
-                  )}
-                </>
+                        ) : null}
+                      </View>
+                    )}
+                  </>
+                )
               )}
             </>
           )}
