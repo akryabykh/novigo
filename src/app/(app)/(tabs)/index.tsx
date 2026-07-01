@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,14 +8,16 @@ import {
   computeRings,
   endOfWeek,
   enumerateDates,
+  goalMaxOnDate,
+  goalsForScope,
   startOfWeek,
   todayISO,
 } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { GoalRow } from '../../../features/goals/GoalRow';
-import { goalsByTimeframe } from '../../../features/goals/select';
-import { useProfile, useUpsertLog, useWorkspace } from '../../../features/queries';
-import { EmptyState, ProgressRing, Skeleton, Text } from '../../../ui/components';
+import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
+import { useProfile, useSaveGoals, useUpsertLog, useWorkspace } from '../../../features/queries';
+import { Button, EmptyState, ProgressRing, Skeleton, Text } from '../../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
@@ -48,12 +49,9 @@ function addMonths(d: string, n: number): string {
   const last = new Date(Date.UTC(y2, m2, 0)).getUTCDate();
   return `${y2}-${pad(m2)}-${pad(Math.min(day, last))}`;
 }
-function dayNum(d: string): number {
-  return Number(d.split('-')[2]);
-}
-function monthOf(d: string): number {
-  return Number(d.split('-')[1]) - 1;
-}
+const dayNum = (d: string) => Number(d.split('-')[2]);
+const monthOf = (d: string) => Number(d.split('-')[1]) - 1;
+
 function periodTitle(scope: Timeframe, d: string, today: string): string {
   if (scope === 'day') {
     if (d === today) return 'Сегодня';
@@ -75,18 +73,19 @@ function periodTitle(scope: Timeframe, d: string, today: string): string {
 
 export default function HomeScreen() {
   const c = useColors();
-  const router = useRouter();
   const today = todayISO();
   const { user } = useAuth();
   const uid = user?.id;
   const { data: profile } = useProfile(uid);
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
   const upsert = useUpsertLog(uid);
+  const saveGoals = useSaveGoals(uid);
 
   const [scope, setScope] = useState<Timeframe>('day');
   const [refDate, setRefDate] = useState<string>(today);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [editing, setEditing] = useState(false);
 
   // merge optimistic per-(goal,date) overrides over server logs
   const mergedLogs = useMemo<DailyLog[]>(() => {
@@ -106,6 +105,11 @@ export default function HomeScreen() {
   );
 
   const weekDays = useMemo(() => enumerateDates(startOfWeek(refDate), endOfWeek(refDate)), [refDate]);
+  const daysWithProgress = useMemo(() => {
+    const s = new Set<string>();
+    for (const l of mergedLogs) if (l.value > 0) s.add(l.date);
+    return s;
+  }, [mergedLogs]);
 
   const stepPeriod = (dir: 1 | -1) => {
     setRefDate((d) =>
@@ -122,8 +126,15 @@ export default function HomeScreen() {
     }, 500);
   };
 
-  const selectedGoals = ws ? goalsByTimeframe(ws, scope) : [];
+  const selectedGoals = ws ? goalsForScope(ws.goals, scope, refDate) : [];
+  const scopeGoals = ws ? ws.goals.filter((g) => g.timeframe === scope) : [];
   const hasAnyGoals = !!ws && ws.goals.length > 0;
+
+  const fillAll = () => selectedGoals.forEach((g) => save(g.id, goalMaxOnDate(g, mergedLogs, refDate)));
+  const clearAll = () => selectedGoals.forEach((g) => save(g.id, 0));
+
+  const submitHorizon = (payload: SavePayload) =>
+    saveGoals.mutate(payload, { onSuccess: () => setEditing(false) });
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
@@ -156,6 +167,7 @@ export default function HomeScreen() {
                 {weekDays.map((d, i) => {
                   const active = d === refDate;
                   const isToday = d === today;
+                  const hasProgress = daysWithProgress.has(d);
                   return (
                     <Pressable
                       key={d}
@@ -163,10 +175,12 @@ export default function HomeScreen() {
                       style={{
                         flex: 1,
                         alignItems: 'center',
-                        gap: 4,
+                        gap: 3,
                         paddingVertical: spacing.sm,
                         borderRadius: radius.md,
                         backgroundColor: active ? c.accent : 'transparent',
+                        borderWidth: !active && isToday ? 1.5 : 0,
+                        borderColor: c.accent,
                       }}>
                       <Text variant="caption" style={{ color: active ? '#fff' : c.textFaint }}>
                         {WD[i]}
@@ -176,23 +190,43 @@ export default function HomeScreen() {
                         style={{ color: active ? '#fff' : isToday ? c.accent : c.text }}>
                         {dayNum(d)}
                       </Text>
+                      <View
+                        style={{
+                          width: 5,
+                          height: 5,
+                          borderRadius: 3,
+                          backgroundColor: hasProgress ? (active ? '#fff' : c.accent) : 'transparent',
+                        }}
+                      />
                     </Pressable>
                   );
                 })}
               </View>
 
               {/* period navigator */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <NavArrow label="‹" onPress={() => stepPeriod(-1)} />
-                <Pressable onPress={() => setRefDate(today)} style={{ alignItems: 'center' }}>
+              <View style={{ gap: spacing.sm }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <NavArrow label="‹" onPress={() => stepPeriod(-1)} />
                   <Text variant="heading">{periodTitle(scope, refDate, today)}</Text>
-                  {refDate !== today ? (
-                    <Text variant="caption" tone="accent">
-                      к сегодня
+                  <NavArrow label="›" onPress={() => stepPeriod(1)} />
+                </View>
+                {refDate !== today ? (
+                  <Pressable
+                    onPress={() => setRefDate(today)}
+                    style={{
+                      alignSelf: 'center',
+                      paddingHorizontal: spacing.lg,
+                      height: 32,
+                      borderRadius: radius.md,
+                      backgroundColor: c.surfaceAlt,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                    <Text variant="label" tone="accent">
+                      Сегодня
                     </Text>
-                  ) : null}
-                </Pressable>
-                <NavArrow label="›" onPress={() => stepPeriod(1)} />
+                  </Pressable>
+                ) : null}
               </View>
 
               {/* rings selector */}
@@ -202,7 +236,10 @@ export default function HomeScreen() {
                   return (
                     <Pressable
                       key={tf}
-                      onPress={() => setScope(tf)}
+                      onPress={() => {
+                        setScope(tf);
+                        setEditing(false);
+                      }}
                       style={{
                         flex: 1,
                         alignItems: 'center',
@@ -214,9 +251,7 @@ export default function HomeScreen() {
                         backgroundColor: active ? c.surface : 'transparent',
                       }}>
                       <ProgressRing progress={rings[tf]} size={84} stroke={8} color={timeframeColor[tf]} />
-                      <Text
-                        variant="label"
-                        style={{ color: active ? timeframeColor[tf] : c.textMuted }}>
+                      <Text variant="label" style={{ color: active ? timeframeColor[tf] : c.textMuted }}>
                         {timeframeLabel[tf]}
                       </Text>
                     </Pressable>
@@ -230,45 +265,87 @@ export default function HomeScreen() {
                   <Skeleton height={96} rounded={radius.lg} />
                 </View>
               ) : (
-                <>
-                  {/* goals header */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                    <View
-                      style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }}
-                    />
-                    <Text variant="heading" style={{ flex: 1 }}>
-                      Цели · {timeframeLabel[scope].toLowerCase()}
-                    </Text>
-                    <Text variant="caption" tone="accent" onPress={() => router.push('/(app)/goals/edit')}>
-                      {hasAnyGoals ? 'изменить' : ''}
-                    </Text>
-                  </View>
+                editing ? (
+                  <HorizonEditor
+                    scope={scope}
+                    existing={scopeGoals}
+                    onSave={submitHorizon}
+                    onCancel={() => setEditing(false)}
+                    saving={saveGoals.isPending}
+                  />
+                ) : (
+                  <>
+                    {/* goals header */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
+                      <Text variant="heading" style={{ flex: 1 }}>
+                        Цели · {timeframeLabel[scope].toLowerCase()}
+                      </Text>
+                      {scopeGoals.length > 0 ? (
+                        <Text variant="caption" tone="accent" onPress={() => setEditing(true)}>
+                          Изменить
+                        </Text>
+                      ) : null}
+                    </View>
 
-                  {!hasAnyGoals ? (
-                    <EmptyState
-                      emoji="🎯"
-                      title="Поставь цели"
-                      subtitle="Задай цели на день, неделю и месяц — кольца начнут заполняться."
-                      ctaTitle="Поставить цели"
-                      onCta={() => router.push('/(app)/goals/edit')}
-                    />
-                  ) : selectedGoals.length === 0 ? (
-                    <View style={{ gap: spacing.md }}>
-                      <Text variant="body" tone="muted">
-                        На «{timeframeLabel[scope].toLowerCase()}» целей нет.
-                      </Text>
-                      <Text variant="label" tone="accent" onPress={() => router.push('/(app)/goals/edit')}>
-                        Добавить цель
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={{ gap: spacing.md }}>
-                      {selectedGoals.map((g) => (
-                        <GoalRow key={g.id} goal={g} logs={mergedLogs} date={refDate} onSave={save} />
-                      ))}
-                    </View>
-                  )}
-                </>
+                    {!hasAnyGoals ? (
+                      <EmptyState
+                        emoji="🎯"
+                        title="Поставь цели"
+                        subtitle="Задай цели на день, неделю и месяц — кольца начнут заполняться."
+                        ctaTitle="Поставить цели"
+                        onCta={() => setEditing(true)}
+                      />
+                    ) : (
+                      <View style={{ gap: spacing.md }}>
+                        {selectedGoals.map((g) => (
+                          <GoalRow
+                            key={g.id}
+                            goal={g}
+                            logs={mergedLogs}
+                            date={refDate}
+                            onSave={save}
+                            onEdit={() => setEditing(true)}
+                          />
+                        ))}
+
+                        {selectedGoals.length === 0 ? (
+                          <Text variant="body" tone="muted">
+                            На «{timeframeLabel[scope].toLowerCase()}» целей нет.
+                          </Text>
+                        ) : null}
+
+                        <Pressable
+                          onPress={() => setEditing(true)}
+                          style={{
+                            height: 46,
+                            borderRadius: radius.md,
+                            borderWidth: 1.5,
+                            borderColor: c.border,
+                            borderStyle: 'dashed',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                          <Text variant="label" style={{ color: timeframeColor[scope] }}>
+                            Добавить цель · {timeframeLabel[scope].toLowerCase()}
+                          </Text>
+                        </Pressable>
+
+                        {/* bulk actions for the selected day */}
+                        {selectedGoals.length > 0 ? (
+                          <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                            <View style={{ flex: 1 }}>
+                              <Button title="Выполнить всё" variant="secondary" onPress={fillAll} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Button title="Очистить" variant="ghost" onPress={clearAll} />
+                            </View>
+                          </View>
+                        ) : null}
+                      </View>
+                    )}
+                  </>
+                )
               )}
             </>
           )}

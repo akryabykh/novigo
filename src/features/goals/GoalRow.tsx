@@ -14,6 +14,7 @@ export function GoalRow({
   logs,
   date,
   onSave,
+  onEdit,
   readOnly,
 }: {
   goal: Goal;
@@ -21,6 +22,7 @@ export function GoalRow({
   /** the selected calendar date the stepper edits */
   date: string;
   onSave?: (goalId: string, dateValue: number) => void;
+  onEdit?: () => void;
   readOnly?: boolean;
 }) {
   const c = useColors();
@@ -49,6 +51,11 @@ export function GoalRow({
           <Text variant="caption" style={{ color: done ? color : c.textFaint }}>
             {Math.round(current * 100) / 100} / {goal.target}
           </Text>
+          {onEdit ? (
+            <Text variant="caption" tone="accent" onPress={onEdit}>
+              Изм.
+            </Text>
+          ) : null}
         </View>
 
         <ProgressBar progress={progress} color={color} />

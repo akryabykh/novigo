@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { NewGoal } from '../../../core/data';
 import type { Goal, Timeframe } from '../../../core/domain';
-import { validateWeights } from '../../../core/logic';
+import { todayISO, validateWeights } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
 import { Button, Card, Input, ProgressBar, Text } from '../../../ui/components';
@@ -18,6 +18,7 @@ interface Row {
   title: string;
   target: string;
   weight: string;
+  endDate: string | null;
 }
 type Rows = Record<Timeframe, Row[]>;
 const ORDER: Timeframe[] = ['day', 'week', 'month'];
@@ -28,13 +29,14 @@ const HINT: Record<Timeframe, string> = {
 };
 
 let counter = 0;
-const blankRow = (): Row => ({ key: `n${counter++}`, title: '', target: '', weight: '' });
+const blankRow = (): Row => ({ key: `n${counter++}`, title: '', target: '', weight: '', endDate: null });
 const fromGoal = (g: Goal): Row => ({
   key: g.id,
   id: g.id,
   title: g.title,
   target: String(g.target),
   weight: String(g.weight),
+  endDate: g.endDate,
 });
 const seedRows = (goals: Goal[]): Rows => ({
   day: goals.filter((g) => g.timeframe === 'day').map(fromGoal),
@@ -139,8 +141,17 @@ function Editor({ uid, existing }: { uid: string | undefined; existing: Goal[] }
         return setError(`«${timeframeLabel[tf]}»: сумма весов должна быть 100%`);
 
       for (const p of parsed) {
-        if (p.row.id) updates.push({ id: p.row.id, title: p.title, target: p.target, weight: p.weight });
-        else creates.push({ title: p.title, timeframe: tf, target: p.target, weight: p.weight });
+        if (p.row.id)
+          updates.push({ id: p.row.id, title: p.title, target: p.target, weight: p.weight, endDate: p.row.endDate });
+        else
+          creates.push({
+            title: p.title,
+            timeframe: tf,
+            target: p.target,
+            weight: p.weight,
+            startDate: todayISO(),
+            endDate: null,
+          });
       }
     }
 

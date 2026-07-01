@@ -18,6 +18,8 @@ export interface GoalRow {
   timeframe: Goal['timeframe'];
   target: number | string;
   weight: number | string;
+  start_date: string;
+  end_date: string | null;
 }
 export interface DailyLogRow {
   id: string;
@@ -52,6 +54,8 @@ export const toGoal = (r: GoalRow): Goal => ({
   timeframe: r.timeframe,
   target: num(r.target),
   weight: num(r.weight),
+  startDate: r.start_date,
+  endDate: r.end_date,
 });
 
 export const toDailyLog = (r: DailyLogRow): DailyLog => ({
