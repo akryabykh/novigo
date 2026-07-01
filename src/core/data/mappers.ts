@@ -1,5 +1,5 @@
 // Row <-> domain mappers. DB is snake_case; domain is camelCase.
-import type { Achievement, AchievementCode, DailyLog, Goal, GoalSession, Profile } from '../domain';
+import type { Achievement, AchievementCode, DailyLog, Goal, Profile } from '../domain';
 
 export interface ProfileRow {
   id: string;
@@ -11,15 +11,9 @@ export interface ProfileRow {
   current_streak: number;
   best_streak: number;
 }
-export interface SessionRow {
-  id: string;
-  user_id: string;
-  start_date: string;
-  archived: boolean;
-}
 export interface GoalRow {
   id: string;
-  session_id: string;
+  user_id: string;
   title: string;
   timeframe: Goal['timeframe'];
   target: number | string;
@@ -51,15 +45,9 @@ export const toProfile = (r: ProfileRow): Profile => ({
   bestStreak: r.best_streak,
 });
 
-export const toSession = (r: SessionRow): GoalSession => ({
-  id: r.id,
-  userId: r.user_id,
-  startDate: r.start_date,
-});
-
 export const toGoal = (r: GoalRow): Goal => ({
   id: r.id,
-  sessionId: r.session_id,
+  userId: r.user_id,
   title: r.title,
   timeframe: r.timeframe,
   target: num(r.target),

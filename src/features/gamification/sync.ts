@@ -1,8 +1,7 @@
-// Recompute gamification from the active session and persist it.
-// Called after any write that can change progress (logging).
+// Recompute gamification from the user's goals + logs and persist it.
+// Called after any write that can change progress (logging, editing goals).
 import {
-  getActiveSession,
-  listGoalsBySessions,
+  listGoalsByUser,
   listLogsByGoals,
   unlockAchievements,
   updateGamification,
@@ -10,14 +9,13 @@ import {
 import { computeProfileStats, detectAchievements } from './engine';
 
 export async function syncGamification(uid: string) {
-  const session = await getActiveSession(uid);
-  if (!session) {
+  const goals = await listGoalsByUser(uid);
+  if (goals.length === 0) {
     await updateGamification(uid, { xp: 0, level: 1, currentStreak: 0, bestStreak: 0 });
     return;
   }
-  const goals = await listGoalsBySessions([session.id]);
   const logs = await listLogsByGoals(goals.map((g) => g.id));
-  const bundle = { session, goals, logs };
+  const bundle = { goals, logs };
 
   const stats = computeProfileStats(bundle);
   await updateGamification(uid, stats);

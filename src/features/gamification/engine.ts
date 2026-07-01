@@ -1,26 +1,25 @@
 // ============================================================
-// Gamification engine — derives XP / level / streaks / achievements from
-// the active session's data. Pure + idempotent (recomputed from scratch).
-// Streak day = day-ring of that day >= threshold.
+// Gamification engine — derives XP / level / streaks / achievements from the
+// user's recurring goals + logs. Pure + idempotent (recomputed from scratch).
+// Calendar model: streak day = day-ring of that day >= threshold.
 // ============================================================
-import type { AchievementCode, DailyLog, Goal, GoalSession } from '../../core/domain';
+import type { AchievementCode, DailyLog, Goal } from '../../core/domain';
 import {
   XP,
-  WEEKS_IN_SESSION,
-  clampAsOf,
   computeRings,
   computeStreaks,
-  currentWeekIndex,
   dayGoalsOn,
+  endOfMonth,
+  endOfWeek,
   enumerateDates,
   levelFromXp,
+  startOfMonth,
+  startOfWeek,
   todayISO,
-  weekRange,
 } from '../../core/logic';
 import { STREAK_ACTIVE_THRESHOLD } from '../../ui/theme';
 
 export interface Bundle {
-  session: GoalSession;
   goals: Goal[];
   logs: DailyLog[];
 }
@@ -31,47 +30,60 @@ function sumInRange(goalId: string, logs: DailyLog[], start: string, end: string
   return s;
 }
 
-/** Session dates (<= asOf) whose day-ring met the active threshold. */
+const min = (a: string, b: string): string => (a < b ? a : b);
+
+/** Every calendar date from the earliest log up to today (empty if no logs). */
+function historyDates(b: Bundle, today: string): string[] {
+  let earliest: string | null = null;
+  for (const l of b.logs) if (earliest == null || l.date < earliest) earliest = l.date;
+  if (earliest == null || earliest > today) return [];
+  return enumerateDates(earliest, today);
+}
+
+function distinct(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+/** Dates whose day-ring met the active threshold. */
 export function activeDates(b: Bundle, today: string = todayISO()): string[] {
-  const asOf = clampAsOf(b.session.startDate, today);
-  return enumerateDates(b.session.startDate, asOf).filter((d) => {
+  return historyDates(b, today).filter((d) => {
     const ring = dayGoalsOn(b.goals, b.logs, d);
     return ring != null && ring >= STREAK_ACTIVE_THRESHOLD;
   });
 }
 
 export function computeXp(b: Bundle, today: string = todayISO()): number {
-  const asOf = clampAsOf(b.session.startDate, today);
+  const days = historyDates(b, today);
+  if (days.length === 0) return 0;
   let xp = 0;
 
   const dayGoals = b.goals.filter((g) => g.timeframe === 'day');
   const weekGoals = b.goals.filter((g) => g.timeframe === 'week');
   const monthGoals = b.goals.filter((g) => g.timeframe === 'month');
 
-  // +10 per day a daily goal hits target
+  // +10 per day a daily goal hits its target
   for (const g of dayGoals) {
-    for (const d of enumerateDates(b.session.startDate, asOf)) {
-      if (sumInRange(g.id, b.logs, d, d) >= g.target) xp += XP.PER_GOAL;
-    }
+    for (const d of days) if (sumInRange(g.id, b.logs, d, d) >= g.target) xp += XP.PER_GOAL;
   }
 
-  // +10 per completed week for each weekly goal
-  const lastWeek = currentWeekIndex(b.session.startDate, asOf);
+  // +10 per calendar week a weekly goal hits its target
+  const weekStarts = distinct(days.map(startOfWeek));
   for (const g of weekGoals) {
-    for (let wi = 0; wi <= lastWeek; wi++) {
-      const { start, end } = weekRange(b.session.startDate, wi);
-      const cap = end < asOf ? end : asOf;
-      if (sumInRange(g.id, b.logs, start, cap) >= g.target) xp += XP.PER_GOAL;
+    for (const ws of weekStarts) {
+      if (sumInRange(g.id, b.logs, ws, min(endOfWeek(ws), today)) >= g.target) xp += XP.PER_GOAL;
     }
   }
 
-  // +10 per completed monthly goal
+  // +10 per calendar month a monthly goal hits its target
+  const monthStarts = distinct(days.map(startOfMonth));
   for (const g of monthGoals) {
-    if (sumInRange(g.id, b.logs, b.session.startDate, asOf) >= g.target) xp += XP.PER_GOAL;
+    for (const ms of monthStarts) {
+      if (sumInRange(g.id, b.logs, ms, min(endOfMonth(ms), today)) >= g.target) xp += XP.PER_GOAL;
+    }
   }
 
   // +5 per perfect day (day-ring == 100%)
-  for (const d of enumerateDates(b.session.startDate, asOf)) {
+  for (const d of days) {
     const ring = dayGoalsOn(b.goals, b.logs, d);
     if (ring != null && ring >= 1) xp += XP.PERFECT_DAY;
   }
@@ -100,16 +112,14 @@ export function detectAchievements(b: Bundle, today: string = todayISO()): Achie
   const { best } = computeStreaks(activeDates(b, today), today);
   if (best >= 7) codes.push('week_streak');
 
-  const asOf = clampAsOf(b.session.startDate, today);
-  const perfectDay = enumerateDates(b.session.startDate, asOf).some((d) => {
+  const perfectDay = historyDates(b, today).some((d) => {
     const ring = dayGoalsOn(b.goals, b.logs, d);
     return ring != null && ring >= 1;
   });
   if (perfectDay) codes.push('perfect_day');
 
-  if (computeRings(b.session, b.goals, b.logs, today).month >= 1) codes.push('session_master');
+  // "session_master" repurposed: current calendar month ring at 100%.
+  if (computeRings(b.goals, b.logs, today).month >= 1) codes.push('session_master');
 
   return codes;
 }
-
-export { WEEKS_IN_SESSION };
