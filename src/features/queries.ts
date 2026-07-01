@@ -81,6 +81,7 @@ export interface GoalUpdate {
   title: string;
   target: number;
   weight: number;
+  endDate: string | null;
 }
 
 /** Create / update / delete the user's recurring goals in one shot. */

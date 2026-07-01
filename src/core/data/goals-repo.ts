@@ -19,6 +19,8 @@ export interface NewGoal {
   timeframe: Timeframe;
   target: number;
   weight: number;
+  startDate: string;
+  endDate: string | null;
 }
 
 export async function createGoals(userId: string, goals: NewGoal[]): Promise<Goal[]> {
@@ -29,6 +31,8 @@ export async function createGoals(userId: string, goals: NewGoal[]): Promise<Goa
     timeframe: g.timeframe,
     target: g.target,
     weight: g.weight,
+    start_date: g.startDate,
+    end_date: g.endDate,
   }));
   const { data, error } = await supabase.from('goals').insert(rows).select('*');
   if (error) throw error;
@@ -37,11 +41,11 @@ export async function createGoals(userId: string, goals: NewGoal[]): Promise<Goa
 
 export async function updateGoal(
   id: string,
-  patch: { title: string; target: number; weight: number },
+  patch: { title: string; target: number; weight: number; endDate: string | null },
 ): Promise<void> {
   const { error } = await supabase
     .from('goals')
-    .update({ title: patch.title, target: patch.target, weight: patch.weight })
+    .update({ title: patch.title, target: patch.target, weight: patch.weight, end_date: patch.endDate })
     .eq('id', id);
   if (error) throw error;
 }

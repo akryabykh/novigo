@@ -31,6 +31,8 @@ export interface Goal {
   timeframe: Timeframe;
   target: number; // цель за период своего горизонта
   weight: number; // вес внутри своего горизонта, 0..100
+  startDate: string; // 'YYYY-MM-DD' — действует с этой даты (не задним числом)
+  endDate: string | null; // 'YYYY-MM-DD' включительно, либо null = навсегда
 }
 
 export interface DailyLog {
@@ -104,6 +106,21 @@ export function periodRange(tf: Timeframe, refDate: string): { start: string; en
   return { start: startOfMonth(refDate), end: endOfMonth(refDate) };
 }
 
+// ---------- ПЕРИОД ДЕЙСТВИЯ ЦЕЛИ ----------
+/** Действует ли цель в конкретный день. */
+export function isActiveOn(goal: Goal, date: string): boolean {
+  return date >= goal.startDate && (goal.endDate == null || date <= goal.endDate);
+}
+/** Пересекается ли период действия цели с окном [start..end]. */
+function overlaps(goal: Goal, start: string, end: string): boolean {
+  return goal.startDate <= end && (goal.endDate == null || goal.endDate >= start);
+}
+/** Цели горизонта tf, чей период действия пересекает период даты refDate. */
+export function goalsForScope(goals: Goal[], tf: Timeframe, refDate: string): Goal[] {
+  const { start, end } = periodRange(tf, refDate);
+  return goals.filter((g) => g.timeframe === tf && overlaps(g, start, end));
+}
+
 // ---------- СУММЫ ----------
 function sumInRange(goalId: string, logs: DailyLog[], start: string, end: string): number {
   let s = 0;
@@ -117,9 +134,6 @@ function weighted(goals: Goal[], fn: (g: Goal) => number): number | null {
   const wsum = goals.reduce((s, g) => s + g.weight, 0) || 1;
   return goals.reduce((acc, g) => acc + fn(g) * (g.weight / wsum), 0);
 }
-function only(goals: Goal[], tf: Timeframe): Goal[] {
-  return goals.filter((g) => g.timeframe === tf);
-}
 /**
  * Взвешенная связка двух частей с ФИКСИРОВАННЫМИ долями: отсутствующая часть
  * считается за 0 (не перенормируется). Так дневная половина недели ограничена
@@ -130,34 +144,38 @@ function blend(a: number | null, wa: number, b: number | null, wb: number): numb
   return wa * (a ?? 0) + wb * (b ?? 0);
 }
 
-// ---------- ПРОГРЕСС ПО ГОРИЗОНТАМ ----------
-/** Дневные цели за конкретный день, 0..1; null если дневных целей нет. */
+const avg = (xs: number[]): number => xs.reduce((s, x) => s + x, 0) / xs.length;
+
+// ---------- ПРОГРЕСС ПО ГОРИЗОНТАМ (учитывая период действия цели) ----------
+/** Дневные цели, ДЕЙСТВУЮЩИЕ в этот день, 0..1; null если таких нет. */
 export function dayGoalsOn(goals: Goal[], logs: DailyLog[], date: string): number | null {
-  return weighted(only(goals, 'day'), (g) => clamp01(sumInRange(g.id, logs, date, date) / g.target));
+  const active = goals.filter((g) => g.timeframe === 'day' && isActiveOn(g, date));
+  return weighted(active, (g) => clamp01(sumInRange(g.id, logs, date, date) / g.target));
 }
 
-/** Недельные цели за окно недели [wStart..wEnd], 0..1; null если их нет. */
+/** Недельные цели, действующие в неделе [wStart..wEnd], 0..1; null если их нет. */
 function weekGoalsProgress(goals: Goal[], logs: DailyLog[], wStart: string, wEnd: string): number | null {
-  return weighted(only(goals, 'week'), (g) => clamp01(sumInRange(g.id, logs, wStart, wEnd) / g.target));
+  const active = goals.filter((g) => g.timeframe === 'week' && overlaps(g, wStart, wEnd));
+  return weighted(active, (g) => clamp01(sumInRange(g.id, logs, wStart, wEnd) / g.target));
 }
 
-/** Месячные цели за окно месяца [mStart..mEnd], 0..1; null если их нет. */
+/** Месячные цели, действующие в месяце [mStart..mEnd], 0..1; null если их нет. */
 function monthGoalsProgress(goals: Goal[], logs: DailyLog[], mStart: string, mEnd: string): number | null {
-  return weighted(only(goals, 'month'), (g) => clamp01(sumInRange(g.id, logs, mStart, mEnd) / g.target));
+  const active = goals.filter((g) => g.timeframe === 'month' && overlaps(g, mStart, mEnd));
+  return weighted(active, (g) => clamp01(sumInRange(g.id, logs, mStart, mEnd) / g.target));
 }
 
 /**
  * Кольцо недели (начало weekStart, Пн): 60% дневные + 40% недельные.
- * Дневная часть — сумма дневных колец за 7 дней недели / 7 (идеальный день = 1/7 от 60%),
- * будущие дни просто 0. Знаменатель фиксированный, поэтому неделя наполняется постепенно.
+ * Дневная часть — среднее дневных колец ПО ДНЯМ, где реально есть дневные цели
+ * (динамический знаменатель): если цели активны только 4 дня из 7 — знаменатель 4.
  */
 export function weekRingFor(goals: Goal[], logs: DailyLog[], weekStart: string): number | null {
   const wEnd = addDays(weekStart, WEEK_DAYS - 1);
-  const dayPart =
-    only(goals, 'day').length === 0
-      ? null
-      : enumerateDates(weekStart, wEnd).reduce((s, d) => s + (dayGoalsOn(goals, logs, d) ?? 0), 0) /
-        WEEK_DAYS;
+  const dayRings = enumerateDates(weekStart, wEnd)
+    .map((d) => dayGoalsOn(goals, logs, d))
+    .filter((r): r is number => r != null);
+  const dayPart = dayRings.length ? avg(dayRings) : null;
   const weekPart = weekGoalsProgress(goals, logs, weekStart, wEnd);
   return blend(dayPart, WEEK_DAY_WEIGHT, weekPart, WEEK_OWN_WEIGHT);
 }
@@ -174,17 +192,12 @@ export function computeRings(goals: Goal[], logs: DailyLog[], refDate: string = 
 
   const week = weekRingFor(goals, logs, startOfWeek(refDate)) ?? 0;
 
-  // Месяц завязан на НЕДЕЛИ (не на дни напрямую): 80% — среднее результатов недель
-  // месяца (незавершённые недели = 0), 20% — месячные цели. Знаменатель — фактическое
-  // число недель календарного месяца (4–5), остальное как в исходной модели.
-  const weeks = weeksOfMonth(refDate);
-  const hasDayOrWeek = only(goals, 'day').length > 0 || only(goals, 'week').length > 0;
-  let weeksPart: number | null = null;
-  if (hasDayOrWeek && weeks.length > 0) {
-    let s = 0;
-    for (const w of weeks) s += weekRingFor(goals, logs, w) ?? 0;
-    weeksPart = s / weeks.length;
-  }
+  // Месяц завязан на НЕДЕЛИ (80%) + месячные цели (20%). Знаменатель — динамический:
+  // среднее по неделям месяца, где есть хоть какие-то дневные/недельные цели.
+  const weekRings = weeksOfMonth(refDate)
+    .map((w) => weekRingFor(goals, logs, w))
+    .filter((r): r is number => r != null);
+  const weeksPart = weekRings.length ? avg(weekRings) : null;
   const monthPart = monthGoalsProgress(goals, logs, startOfMonth(refDate), endOfMonth(refDate));
   const month = blend(weeksPart, MONTH_WEEKS_WEIGHT, monthPart, MONTH_OWN_WEIGHT) ?? 0;
 
