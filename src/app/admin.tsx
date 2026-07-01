@@ -6,14 +6,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { NewGoal } from '../../core/data';
-import type { DailyLog, Goal, GoalSession, Timeframe } from '../../core/domain';
-import { SESSION_DAYS, addDays, computeRings, currentWeekIndex, todayISO, validateWeights } from '../../core/logic';
-import { useAuth } from '../../features/auth/auth-provider';
-import { GoalRow } from '../../features/goals/GoalRow';
-import { Button, Card, Input, ProgressBar, ProgressRing, Text } from '../../ui/components';
-import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
-import { useColors } from '../../ui/theme-provider';
+import type { NewGoal } from '../core/data';
+import type { DailyLog, Goal, GoalSession, Timeframe } from '../core/domain';
+import { SESSION_DAYS, addDays, computeRings, currentWeekIndex, todayISO, validateWeights } from '../core/logic';
+import { useAuth } from '../features/auth/auth-provider';
+import { GoalRow } from '../features/goals/GoalRow';
+import { Button, Card, Input, ProgressBar, ProgressRing, Text } from '../ui/components';
+import { radius, spacing, timeframeColor, timeframeLabel } from '../ui/theme';
+import { useColors } from '../ui/theme-provider';
 
 const KEY = 'novigo.admin.state';
 const ORDER: Timeframe[] = ['day', 'week', 'month'];
