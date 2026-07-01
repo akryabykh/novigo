@@ -20,7 +20,7 @@ export default function LoginScreen() {
     // local admin / preview mode (day-scrubber demo) — bypasses Supabase
     if (email.trim().toLowerCase() === 'admin' && password === '1111') {
       enterAdmin();
-      router.replace('/(admin)');
+      router.replace('/admin');
       return;
     }
     const parsed = emailSchema.safeParse(email);

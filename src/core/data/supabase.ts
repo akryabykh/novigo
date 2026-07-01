@@ -20,5 +20,9 @@ export const supabase = createClient(url || 'https://placeholder.supabase.co', a
     // On web we must read the recovery/confirm token from the URL hash.
     detectSessionInUrl: Platform.OS === 'web',
     flowType: 'pkce',
+    // No-op lock: the default navigator.locks-based lock can deadlock on web
+    // (auth + queries hang forever). We run single-user, so cross-tab locking
+    // isn't needed — just run the operation.
+    lock: (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => fn(),
   },
 });

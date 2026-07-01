@@ -35,7 +35,7 @@ function RootGate() {
 
   useEffect(() => {
     if (admin) {
-      if (segments[0] !== '(admin)') router.replace('/(admin)');
+      if (segments[0] !== 'admin') router.replace('/admin');
       return;
     }
     if (initializing) return;
@@ -58,7 +58,7 @@ function RootGate() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
-        <Stack.Screen name="(admin)" />
+        <Stack.Screen name="admin" />
       </Stack>
     </View>
   );
