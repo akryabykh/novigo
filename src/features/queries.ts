@@ -3,35 +3,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   createGoals,
-  createSession,
   deleteGoal,
-  deleteSession,
-  getActiveSession,
   getProfile,
-  listAchievements,
-  listGoalsBySessions,
+  listGoalsByUser,
   listLogsByGoals,
+  listAchievements,
   updateGoal,
   updateProfileNames,
   upsertLog,
   type NewGoal,
 } from '../core/data';
-import type { DailyLog, Goal, GoalSession } from '../core/domain';
+import type { DailyLog, Goal } from '../core/domain';
 import { qk } from '../core/query';
 import { syncGamification } from './gamification/sync';
 
 export interface Workspace {
-  session: GoalSession | null;
   goals: Goal[];
   logs: DailyLog[];
 }
 
 async function loadWorkspace(uid: string): Promise<Workspace> {
-  const session = await getActiveSession(uid);
-  if (!session) return { session: null, goals: [], logs: [] };
-  const goals = await listGoalsBySessions([session.id]);
+  const goals = await listGoalsByUser(uid);
+  if (goals.length === 0) return { goals: [], logs: [] };
   const logs = await listLogsByGoals(goals.map((g) => g.id));
-  return { session, goals, logs };
+  return { goals, logs };
 }
 
 export function useProfile(uid: string | undefined) {
@@ -68,19 +63,7 @@ function useInvalidateAll(uid: string | undefined) {
   };
 }
 
-/** Create a new goal session with its goals (day/week/month). */
-export function useCreateSession(uid: string | undefined) {
-  const invalidate = useInvalidateAll(uid);
-  return useMutation({
-    mutationFn: async (goals: NewGoal[]) => {
-      const session = await createSession(uid!);
-      await createGoals(session.id, goals);
-      return session;
-    },
-    onSuccess: invalidate,
-  });
-}
-
+/** Log a value for a goal on a specific date (unique goal_id + date). */
 export function useUpsertLog(uid: string | undefined) {
   const invalidate = useInvalidateAll(uid);
   return useMutation({
@@ -99,28 +82,17 @@ export interface GoalUpdate {
   target: number;
   weight: number;
 }
+
+/** Create / update / delete the user's recurring goals in one shot. */
 export function useSaveGoals(uid: string | undefined) {
   const invalidate = useInvalidateAll(uid);
   return useMutation({
-    mutationFn: async (input: {
-      sessionId: string;
-      updates: GoalUpdate[];
-      creates: NewGoal[];
-      deletes: string[];
-    }) => {
+    mutationFn: async (input: { updates: GoalUpdate[]; creates: NewGoal[]; deletes: string[] }) => {
       for (const u of input.updates) await updateGoal(u.id, u);
       for (const id of input.deletes) await deleteGoal(id);
-      if (input.creates.length) await createGoals(input.sessionId, input.creates);
+      if (input.creates.length) await createGoals(uid!, input.creates);
       if (uid) await syncGamification(uid);
     },
-    onSuccess: invalidate,
-  });
-}
-
-export function useDeleteSession(uid: string | undefined) {
-  const invalidate = useInvalidateAll(uid);
-  return useMutation({
-    mutationFn: (sessionId: string) => deleteSession(sessionId),
     onSuccess: invalidate,
   });
 }

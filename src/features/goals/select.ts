@@ -1,4 +1,4 @@
-// Selectors over the active workspace (session + goals + logs).
+// Selectors over the workspace (goals + logs).
 import type { Goal, Timeframe } from '../../core/domain';
 import type { Workspace } from '../queries';
 

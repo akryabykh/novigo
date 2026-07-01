@@ -1,22 +1,20 @@
 // ============================================================
 // core/logic — платформо-независимое ядро (web + iOS + Android).
 //
-// Модель: СЕССИЯ ЦЕЛЕЙ. Жмёшь + → создаёшь цели на день/неделю/месяц,
-// отсчёт идёт ОТ ЭТОГО МОМЕНТА (не календарь, не регистрация).
-// Сессия = 4 недели = 28 дней.
+// Модель: КАЛЕНДАРНАЯ. Цели — повторяющиеся шаблоны по горизонтам
+// (день/неделя/месяц). Прогресс считается по календарным периодам выбранной
+// даты: день = сама дата, неделя = Пн–Вс этой даты, месяц = календарный месяц.
 //
-// Кольца вложенные:
-//   • День   = дневные цели за сегодня (100%).
+// Кольца вложенные (математика НЕ меняется — только привязка к календарю):
+//   • День   = дневные цели за выбранный день (100%).
 //   • Неделя = 60% (как шли дневные цели на этой неделе) + 40% (недельные цели по весам).
-//   • Месяц  = 80% (среднее результатов недель) + 20% (месячные цели по весам).
+//   • Месяц  = 80% (среднее результатов недель месяца) + 20% (месячные цели по весам).
 // ============================================================
 
 export type Timeframe = 'day' | 'week' | 'month';
 export const TIMEFRAMES: Timeframe[] = ['day', 'week', 'month'];
 
 export const WEEK_DAYS = 7;
-export const WEEKS_IN_SESSION = 4;
-export const SESSION_DAYS = WEEK_DAYS * WEEKS_IN_SESSION; // 28
 
 // Доли вложенных колец:
 //   Неделя = 60% дни + 40% недельные цели
@@ -28,7 +26,7 @@ export const MONTH_OWN_WEIGHT = 0.2;
 
 export interface Goal {
   id: string;
-  sessionId: string;
+  userId: string;
   title: string;
   timeframe: Timeframe;
   target: number; // цель за период своего горизонта
@@ -41,15 +39,10 @@ export interface DailyLog {
   value: number;
 }
 
-export interface GoalSession {
-  id: string;
-  userId: string;
-  startDate: string; // 'YYYY-MM-DD' — начало отсчёта
-}
-
 // ---------- УТИЛИТЫ ДАТ (UTC) ----------
 const MS_DAY = 86_400_000;
 const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
+const pad = (n: number): string => String(n).padStart(2, '0');
 
 export function todayISO(d: Date = new Date()): string {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
@@ -73,31 +66,42 @@ export function enumerateDates(start: string, endInclusive: string): string[] {
   return out;
 }
 
-// ---------- ГРАНИЦЫ СЕССИИ ----------
-export function sessionEnd(start: string): string {
-  return addDays(start, SESSION_DAYS - 1);
+// ---------- КАЛЕНДАРНЫЕ ГРАНИЦЫ (неделя с ПОНЕДЕЛЬНИКА) ----------
+/** Номер дня недели, Пн=0 .. Вс=6. */
+export function weekdayMon0(d: string): number {
+  return (new Date(parse(d)).getUTCDay() + 6) % 7;
 }
-/** Опорная дата, ограниченная рамками сессии [start..end]. */
-export function clampAsOf(start: string, today: string): string {
-  const end = sessionEnd(start);
-  if (today < start) return start;
-  if (today > end) return end;
-  return today;
+export function startOfWeek(d: string): string {
+  return addDays(d, -weekdayMon0(d));
 }
-/** Индекс дня сессии 0..27. */
-export function dayIndex(start: string, asOf: string): number {
-  return Math.max(0, Math.min(SESSION_DAYS - 1, daysBetween(start, asOf)));
+export function endOfWeek(d: string): string {
+  return addDays(startOfWeek(d), WEEK_DAYS - 1);
 }
-/** Индекс текущей недели сессии 0..3. */
-export function currentWeekIndex(start: string, asOf: string): number {
-  return Math.min(WEEKS_IN_SESSION - 1, Math.floor(dayIndex(start, asOf) / WEEK_DAYS));
+export function startOfMonth(d: string): string {
+  const [y, m] = d.split('-');
+  return `${y}-${m}-01`;
 }
-export function weekRange(start: string, weekIndex: number): { start: string; end: string } {
-  const s = addDays(start, weekIndex * WEEK_DAYS);
-  return { start: s, end: addDays(s, WEEK_DAYS - 1) };
+export function endOfMonth(d: string): string {
+  const [y, m] = d.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate(); // day 0 следующего месяца = последний день текущего
+  return `${y}-${pad(m)}-${pad(last)}`;
 }
-export function daysRemaining(start: string, today: string = todayISO()): number {
-  return Math.max(0, daysBetween(today, sessionEnd(start)));
+/** Начала недель (понедельники), пересекающих календарный месяц даты d. */
+export function weeksOfMonth(d: string): string[] {
+  const last = endOfMonth(d);
+  const out: string[] = [];
+  let w = startOfWeek(startOfMonth(d));
+  while (w <= last) {
+    out.push(w);
+    w = addDays(w, WEEK_DAYS);
+  }
+  return out;
+}
+/** Границы периода горизонта относительно опорной даты. */
+export function periodRange(tf: Timeframe, refDate: string): { start: string; end: string } {
+  if (tf === 'day') return { start: refDate, end: refDate };
+  if (tf === 'week') return { start: startOfWeek(refDate), end: endOfWeek(refDate) };
+  return { start: startOfMonth(refDate), end: endOfMonth(refDate) };
 }
 
 // ---------- СУММЫ ----------
@@ -132,44 +136,29 @@ export function dayGoalsOn(goals: Goal[], logs: DailyLog[], date: string): numbe
   return weighted(only(goals, 'day'), (g) => clamp01(sumInRange(g.id, logs, date, date) / g.target));
 }
 
-/** Недельные цели за окно недели до asOf, 0..1; null если их нет. */
-function weekGoalsProgress(
-  goals: Goal[],
-  logs: DailyLog[],
-  wStart: string,
-  asOf: string,
-): number | null {
-  return weighted(only(goals, 'week'), (g) => clamp01(sumInRange(g.id, logs, wStart, asOf) / g.target));
+/** Недельные цели за окно недели [wStart..wEnd], 0..1; null если их нет. */
+function weekGoalsProgress(goals: Goal[], logs: DailyLog[], wStart: string, wEnd: string): number | null {
+  return weighted(only(goals, 'week'), (g) => clamp01(sumInRange(g.id, logs, wStart, wEnd) / g.target));
 }
 
-/** Месячные цели за сессию до asOf, 0..1; null если их нет. */
-function monthGoalsProgress(
-  goals: Goal[],
-  logs: DailyLog[],
-  start: string,
-  asOf: string,
-): number | null {
-  return weighted(only(goals, 'month'), (g) => clamp01(sumInRange(g.id, logs, start, asOf) / g.target));
+/** Месячные цели за окно месяца [mStart..mEnd], 0..1; null если их нет. */
+function monthGoalsProgress(goals: Goal[], logs: DailyLog[], mStart: string, mEnd: string): number | null {
+  return weighted(only(goals, 'month'), (g) => clamp01(sumInRange(g.id, logs, mStart, mEnd) / g.target));
 }
 
 /**
- * Кольцо недели weekIndex: 60% дневные + 40% недельные.
+ * Кольцо недели (начало weekStart, Пн): 60% дневные + 40% недельные.
  * Дневная часть — сумма дневных колец за 7 дней недели / 7 (идеальный день = 1/7 от 60%),
  * будущие дни просто 0. Знаменатель фиксированный, поэтому неделя наполняется постепенно.
  */
-export function weekRingFor(
-  session: GoalSession,
-  goals: Goal[],
-  logs: DailyLog[],
-  weekIndex: number,
-): number | null {
-  const { start: wStart, end: wEnd } = weekRange(session.startDate, weekIndex);
+export function weekRingFor(goals: Goal[], logs: DailyLog[], weekStart: string): number | null {
+  const wEnd = addDays(weekStart, WEEK_DAYS - 1);
   const dayPart =
     only(goals, 'day').length === 0
       ? null
-      : enumerateDates(wStart, wEnd).reduce((s, d) => s + (dayGoalsOn(goals, logs, d) ?? 0), 0) /
+      : enumerateDates(weekStart, wEnd).reduce((s, d) => s + (dayGoalsOn(goals, logs, d) ?? 0), 0) /
         WEEK_DAYS;
-  const weekPart = weekGoalsProgress(goals, logs, wStart, wEnd);
+  const weekPart = weekGoalsProgress(goals, logs, weekStart, wEnd);
   return blend(dayPart, WEEK_DAY_WEIGHT, weekPart, WEEK_OWN_WEIGHT);
 }
 
@@ -179,72 +168,48 @@ export interface Rings {
   month: number;
 }
 
-export function computeRings(
-  session: GoalSession,
-  goals: Goal[],
-  logs: DailyLog[],
-  today: string = todayISO(),
-): Rings {
-  const asOf = clampAsOf(session.startDate, today);
+/** Три вложенных кольца для календарной даты refDate. */
+export function computeRings(goals: Goal[], logs: DailyLog[], refDate: string = todayISO()): Rings {
+  const day = dayGoalsOn(goals, logs, refDate) ?? 0;
 
-  const day = dayGoalsOn(goals, logs, asOf) ?? 0;
+  const week = weekRingFor(goals, logs, startOfWeek(refDate)) ?? 0;
 
-  const wi = currentWeekIndex(session.startDate, asOf);
-  const week = weekRingFor(session, goals, logs, wi) ?? 0;
-
-  // Месяц завязан на НЕДЕЛИ (не на дни напрямую): 50% — среднее результатов 4 недель
-  // (фиксированный знаменатель 4, незавершённые недели = 0), 50% — месячные цели.
+  // Месяц завязан на НЕДЕЛИ (не на дни напрямую): 80% — среднее результатов недель
+  // месяца (незавершённые недели = 0), 20% — месячные цели. Знаменатель — фактическое
+  // число недель календарного месяца (4–5), остальное как в исходной модели.
+  const weeks = weeksOfMonth(refDate);
   const hasDayOrWeek = only(goals, 'day').length > 0 || only(goals, 'week').length > 0;
   let weeksPart: number | null = null;
-  if (hasDayOrWeek) {
+  if (hasDayOrWeek && weeks.length > 0) {
     let s = 0;
-    for (let i = 0; i < WEEKS_IN_SESSION; i++) s += weekRingFor(session, goals, logs, i) ?? 0;
-    weeksPart = s / WEEKS_IN_SESSION;
+    for (const w of weeks) s += weekRingFor(goals, logs, w) ?? 0;
+    weeksPart = s / weeks.length;
   }
-  const monthPart = monthGoalsProgress(goals, logs, session.startDate, sessionEnd(session.startDate));
+  const monthPart = monthGoalsProgress(goals, logs, startOfMonth(refDate), endOfMonth(refDate));
   const month = blend(weeksPart, MONTH_WEEKS_WEIGHT, monthPart, MONTH_OWN_WEIGHT) ?? 0;
 
   return { day, week, month };
 }
 
 // ---------- ПРОГРЕСС ОТДЕЛЬНОЙ ЦЕЛИ (для плашки + / −) ----------
-/** Начало текущего периода цели в рамках сессии. */
-export function goalPeriodStart(session: GoalSession, goal: Goal, today: string): string {
-  const asOf = clampAsOf(session.startDate, today);
-  if (goal.timeframe === 'day') return asOf;
-  if (goal.timeframe === 'week') {
-    return weekRange(session.startDate, currentWeekIndex(session.startDate, asOf)).start;
-  }
-  return session.startDate;
+/** Накоплено по цели за её период относительно опорной даты. */
+export function goalCurrent(goal: Goal, logs: DailyLog[], refDate: string): number {
+  const { start, end } = periodRange(goal.timeframe, refDate);
+  return sumInRange(goal.id, logs, start, end);
 }
 
-/** Накоплено по цели за её текущий период. */
-export function goalCurrent(session: GoalSession, goal: Goal, logs: DailyLog[], today: string): number {
-  const asOf = clampAsOf(session.startDate, today);
-  return sumInRange(goal.id, logs, goalPeriodStart(session, goal, today), asOf);
+/** Значение цели за конкретную дату (то, что редактирует степпер). */
+export function goalOnDate(goal: Goal, logs: DailyLog[], date: string): number {
+  return sumInRange(goal.id, logs, date, date);
 }
 
-export function goalToday(goal: Goal, logs: DailyLog[], today: string): number {
-  return sumInRange(goal.id, logs, today, today);
+export function goalCardProgress(goal: Goal, logs: DailyLog[], refDate: string): number {
+  return goal.target > 0 ? clamp01(goalCurrent(goal, logs, refDate) / goal.target) : 0;
 }
 
-export function goalCardProgress(
-  session: GoalSession,
-  goal: Goal,
-  logs: DailyLog[],
-  today: string,
-): number {
-  return goal.target > 0 ? clamp01(goalCurrent(session, goal, logs, today) / goal.target) : 0;
-}
-
-/** Максимум на СЕГОДНЯ без перевыполнения периода. */
-export function goalMaxToday(
-  session: GoalSession,
-  goal: Goal,
-  logs: DailyLog[],
-  today: string,
-): number {
-  const others = goalCurrent(session, goal, logs, today) - goalToday(goal, logs, today);
+/** Максимум на выбранную дату без перевыполнения периода. */
+export function goalMaxOnDate(goal: Goal, logs: DailyLog[], refDate: string): number {
+  const others = goalCurrent(goal, logs, refDate) - goalOnDate(goal, logs, refDate);
   return Math.max(0, goal.target - others);
 }
 

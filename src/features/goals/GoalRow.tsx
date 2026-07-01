@@ -3,34 +3,33 @@
 import * as Haptics from 'expo-haptics';
 import { Platform, Pressable, TextInput, View } from 'react-native';
 
-import type { DailyLog, Goal, GoalSession } from '../../core/domain';
-import { goalCardProgress, goalCurrent, goalMaxToday, goalToday } from '../../core/logic';
+import type { DailyLog, Goal } from '../../core/domain';
+import { goalCardProgress, goalCurrent, goalMaxOnDate, goalOnDate } from '../../core/logic';
 import { Card, ProgressBar, Text } from '../../ui/components';
 import { radius, spacing, timeframeColor, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 
 export function GoalRow({
-  session,
   goal,
   logs,
-  today,
+  date,
   onSave,
   readOnly,
 }: {
-  session: GoalSession;
   goal: Goal;
   logs: DailyLog[];
-  today: string;
-  onSave?: (goalId: string, todayValue: number) => void;
+  /** the selected calendar date the stepper edits */
+  date: string;
+  onSave?: (goalId: string, dateValue: number) => void;
   readOnly?: boolean;
 }) {
   const c = useColors();
   const color = timeframeColor[goal.timeframe];
 
-  const todayVal = goalToday(goal, logs, today);
-  const current = goalCurrent(session, goal, logs, today);
-  const maxToday = goalMaxToday(session, goal, logs, today);
-  const progress = goalCardProgress(session, goal, logs, today);
+  const todayVal = goalOnDate(goal, logs, date);
+  const current = goalCurrent(goal, logs, date);
+  const maxToday = goalMaxOnDate(goal, logs, date);
+  const progress = goalCardProgress(goal, logs, date);
   const done = current >= goal.target;
 
   const setTodayTo = (v: number) => {

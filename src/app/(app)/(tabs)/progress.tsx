@@ -20,7 +20,7 @@ export default function ProgressScreen() {
 
   const unlockedSet = useMemo(() => new Set((unlocked ?? []).map((a) => a.code)), [unlocked]);
   const activeDays = useMemo(
-    () => (ws?.session ? activeDates({ session: ws.session, goals: ws.goals, logs: ws.logs }).length : 0),
+    () => (ws ? activeDates({ goals: ws.goals, logs: ws.logs }).length : 0),
     [ws],
   );
 
@@ -48,7 +48,7 @@ export default function ProgressScreen() {
                   активных дней
                 </Text>
                 <Text variant="caption" tone="faint">
-                  Целей в сессии: {ws?.goals.length ?? 0}
+                  Целей: {ws?.goals.length ?? 0}
                 </Text>
               </View>
             </Card>
