@@ -11,8 +11,8 @@ const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 // Free-tier Supabase compute sleeps when idle; the first request after a pause can
 // stall until the DB wakes. The default fetch waits forever, so a single stalled
 // request hangs the whole screen on skeletons (browser only gives up after ~2 min).
-// Abort at 10s so react-query can fail fast and retry into the now-awake DB.
-const FETCH_TIMEOUT_MS = 10_000;
+// Abort at 8s so react-query can fail fast and retry into the now-awake DB.
+const FETCH_TIMEOUT_MS = 8_000;
 
 const fetchWithTimeout: typeof fetch = (input, init) => {
   const controller = new AbortController();

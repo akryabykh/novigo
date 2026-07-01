@@ -8,7 +8,7 @@ import { Button, Input, Logo, Screen, Text } from '../../ui/components';
 import { spacing } from '../../ui/theme';
 
 export default function LoginScreen() {
-  const { signInWithPassword, enterAdmin } = useAuth();
+  const { signInWithPassword } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -17,12 +17,6 @@ export default function LoginScreen() {
 
   const submit = async () => {
     setError(null);
-    // local admin / preview mode (day-scrubber demo) — bypasses Supabase
-    if (email.trim().toLowerCase() === 'admin' && password === '1111') {
-      enterAdmin();
-      router.replace('/admin');
-      return;
-    }
     const parsed = emailSchema.safeParse(email);
     if (!parsed.success) return setError(parsed.error.issues[0].message);
     if (!password) return setError('Введите пароль');
