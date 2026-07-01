@@ -47,7 +47,12 @@ function RootGate() {
     }
     if (profileLoading) return;
     if (!profile) {
-      if (!inAuthGroup) router.replace('/(auth)/complete-profile');
+      // Session but no profile row → the name step must finish. The register /
+      // complete-profile screens handle it themselves; from anywhere else
+      // (e.g. logging in with a profile-less account) force-redirect there,
+      // otherwise the user gets stuck on /login looking like "login is broken".
+      const onNameStep = segments.includes('complete-profile') || segments.includes('register');
+      if (!onNameStep) router.replace('/(auth)/complete-profile');
       return;
     }
     if (inAuthGroup) router.replace('/(app)');
