@@ -6,7 +6,7 @@ import { Pressable, View } from 'react-native';
 
 import type { NewGoal } from '../../core/data';
 import type { Goal, Timeframe } from '../../core/domain';
-import { addDays, todayISO, validateWeights } from '../../core/logic';
+import { addDays, validateWeights } from '../../core/logic';
 import type { GoalUpdate } from '../queries';
 import { Button, Card, Input, ProgressBar, Text } from '../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
@@ -21,6 +21,12 @@ interface Row {
   startDate: string;
   endDate: string | null;
 }
+
+const MONTHS_GEN = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+];
+const fmtDay = (d: string) => `${Number(d.split('-')[2])} ${MONTHS_GEN[Number(d.split('-')[1]) - 1]}`;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 function addMonths(d: string, n: number): string {
@@ -60,28 +66,30 @@ export interface SavePayload {
 export function HorizonEditor({
   scope,
   existing,
+  defaultStart,
   saving,
   onSave,
   onCancel,
 }: {
   scope: Timeframe;
   existing: Goal[];
+  /** start date for newly-added goals (the day you're creating them on, never in the past) */
+  defaultStart: string;
   saving?: boolean;
   onSave: (payload: SavePayload) => void;
   onCancel: () => void;
 }) {
   const c = useColors();
-  const today = todayISO();
   const color = timeframeColor[scope];
 
   const [rows, setRows] = useState<Row[]>(() =>
-    existing.length ? existing.map(fromGoal) : [blankRow(today)],
+    existing.length ? existing.map(fromGoal) : [blankRow(defaultStart)],
   );
   const [error, setError] = useState<string | null>(null);
 
   const update = (key: string, patch: Partial<Row>) =>
     setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
-  const add = () => setRows((r) => [...r, blankRow(today)]);
+  const add = () => setRows((r) => [...r, blankRow(defaultStart)]);
   const remove = (key: string) => setRows((r) => r.filter((x) => x.key !== key));
   const distribute = () =>
     setRows((r) => {
@@ -155,6 +163,9 @@ export function HorizonEditor({
         progress={Math.min(1, sum / 100)}
         color={remaining < 0 ? c.danger : sum === 100 ? c.success : color}
       />
+      <Text variant="caption" tone="faint">
+        Новые цели начнутся с {fmtDay(defaultStart)}, действуют «навсегда» или до выбранной даты.
+      </Text>
 
       {rows.map((r) => (
         <Card key={r.key}>

@@ -269,6 +269,7 @@ export default function HomeScreen() {
                   <HorizonEditor
                     scope={scope}
                     existing={scopeGoals}
+                    defaultStart={refDate > today ? refDate : today}
                     onSave={submitHorizon}
                     onCancel={() => setEditing(false)}
                     saving={saveGoals.isPending}
