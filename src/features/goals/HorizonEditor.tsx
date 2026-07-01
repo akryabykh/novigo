@@ -42,7 +42,7 @@ let counter = 0;
 const blankRow = (start: string): Row => ({
   key: `n${counter++}`,
   title: '',
-  target: '',
+  target: '1', // по умолчанию 1
   weight: '',
   startDate: start,
   endDate: null,
@@ -169,61 +169,56 @@ export function HorizonEditor({
 
       {rows.map((r) => (
         <Card key={r.key}>
-          <View style={{ gap: spacing.md }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <View style={{ gap: spacing.sm }}>
+            {/* row 1: title + delete */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Input value={r.title} onChangeText={(t) => update(r.key, { title: t })} placeholder="Название цели" />
+              </View>
               <Text variant="label" tone="danger" onPress={() => remove(r.key)}>
                 Удалить
               </Text>
             </View>
-            <Input value={r.title} onChangeText={(t) => update(r.key, { title: t })} placeholder="Название цели" />
-            <View style={{ flexDirection: 'row', gap: spacing.md }}>
-              <View style={{ flex: 1 }}>
+
+            {/* row 2: кол-во (1–9) + вес % + период */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: spacing.sm }}>
+              <NumberPicker
+                value={parseInt(r.target, 10) || 1}
+                color={color}
+                onChange={(n) => update(r.key, { target: String(n) })}
+              />
+              <View style={{ width: 92 }}>
                 <Input
-                  label="Цель"
-                  value={r.target}
-                  onChangeText={(t) => update(r.key, { target: t })}
-                  keyboardType="numeric"
-                  placeholder="30"
-                />
-              </View>
-              <View style={{ width: 96 }}>
-                <Input
-                  label="Вес %"
                   value={r.weight}
                   onChangeText={(t) => update(r.key, { weight: t })}
                   keyboardType="numeric"
-                  placeholder="50"
+                  placeholder="вес %"
                 />
               </View>
+              <Chip label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
+              <Chip
+                label="До даты"
+                active={!!r.endDate}
+                color={color}
+                onPress={() => update(r.key, { endDate: r.endDate ?? addMonths(r.startDate, 1) })}
+              />
             </View>
 
-            {/* period */}
-            <View style={{ gap: spacing.sm }}>
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <Chip label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
-                <Chip
-                  label="До даты"
-                  active={!!r.endDate}
-                  color={color}
-                  onPress={() => update(r.key, { endDate: r.endDate ?? addMonths(r.startDate, 1) })}
+            {r.endDate ? (
+              <View style={{ gap: spacing.sm }}>
+                <Input
+                  value={r.endDate}
+                  onChangeText={(t) => update(r.key, { endDate: t })}
+                  placeholder="2026-12-31"
+                  autoCapitalize="none"
                 />
-              </View>
-              {r.endDate ? (
-                <View style={{ gap: spacing.sm }}>
-                  <Input
-                    value={r.endDate}
-                    onChangeText={(t) => update(r.key, { endDate: t })}
-                    placeholder="2026-12-31"
-                    autoCapitalize="none"
-                  />
-                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                    <Chip label="+1 нед" color={color} onPress={() => update(r.key, { endDate: addDays(r.startDate, 7) })} />
-                    <Chip label="+1 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 1) })} />
-                    <Chip label="+3 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 3) })} />
-                  </View>
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <Chip label="+1 нед" color={color} onPress={() => update(r.key, { endDate: addDays(r.startDate, 7) })} />
+                  <Chip label="+1 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 1) })} />
+                  <Chip label="+3 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 3) })} />
                 </View>
-              ) : null}
-            </View>
+              </View>
+            ) : null}
           </View>
         </Card>
       ))}
@@ -277,6 +272,77 @@ export function HorizonEditor({
           <Button title="Отмена" variant="secondary" onPress={onCancel} />
         </View>
       </View>
+    </View>
+  );
+}
+
+function NumberPicker({
+  value,
+  color,
+  onChange,
+}: {
+  value: number;
+  color: string;
+  onChange: (n: number) => void;
+}) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const base = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const nums = base.includes(value) ? base : [value, ...base];
+  return (
+    <View>
+      <Pressable
+        onPress={() => setOpen((o) => !o)}
+        style={{
+          height: 44,
+          paddingHorizontal: spacing.md,
+          borderRadius: radius.md,
+          borderWidth: 1.5,
+          borderColor: open ? color : c.border,
+          backgroundColor: c.surface,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+        }}>
+        <Text variant="label" tone="muted">
+          Кол-во
+        </Text>
+        <Text variant="label" style={{ color: c.text }}>
+          {value}
+        </Text>
+        <Text variant="caption" tone="faint">
+          ▾
+        </Text>
+      </Pressable>
+      {open ? (
+        <View style={{ marginTop: 6, flexDirection: 'row', flexWrap: 'wrap', gap: 6, maxWidth: 190 }}>
+          {nums.map((n) => {
+            const active = n === value;
+            return (
+              <Pressable
+                key={n}
+                onPress={() => {
+                  onChange(n);
+                  setOpen(false);
+                }}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: radius.md,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 1.5,
+                  borderColor: active ? color : c.border,
+                  backgroundColor: active ? c.surfaceAlt : 'transparent',
+                }}>
+                <Text variant="label" style={{ color: active ? color : c.text }}>
+                  {n}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
