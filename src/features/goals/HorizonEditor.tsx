@@ -47,11 +47,13 @@ const blankRow = (start: string): Row => ({
   startDate: start,
   endDate: null,
 });
+// Кол-во ограничено 1–9; всё вне диапазона (старые данные) приводим к 1.
+const clampCount = (n: number): number => (Number.isInteger(n) && n >= 1 && n <= 9 ? n : 1);
 const fromGoal = (g: Goal): Row => ({
   key: g.id,
   id: g.id,
   title: g.title,
-  target: String(g.target),
+  target: String(clampCount(g.target)),
   weight: String(g.weight),
   startDate: g.startDate,
   endDate: g.endDate,
@@ -287,8 +289,8 @@ function NumberPicker({
 }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
-  const base = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-  const nums = base.includes(value) ? base : [value, ...base];
+  const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const shown = nums.includes(value) ? value : 1;
   return (
     <View>
       <Pressable
@@ -308,7 +310,7 @@ function NumberPicker({
           Кол-во
         </Text>
         <Text variant="label" style={{ color: c.text }}>
-          {value}
+          {shown}
         </Text>
         <Text variant="caption" tone="faint">
           ▾
@@ -317,7 +319,7 @@ function NumberPicker({
       {open ? (
         <View style={{ marginTop: 6, flexDirection: 'row', flexWrap: 'wrap', gap: 6, maxWidth: 190 }}>
           {nums.map((n) => {
-            const active = n === value;
+            const active = n === shown;
             return (
               <Pressable
                 key={n}
