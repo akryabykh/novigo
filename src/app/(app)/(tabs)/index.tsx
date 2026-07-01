@@ -8,6 +8,7 @@ import {
   computeRings,
   endOfWeek,
   enumerateDates,
+  goalCurrent,
   goalMaxOnDate,
   goalsForScope,
   startOfWeek,
@@ -16,7 +17,7 @@ import {
 import { useAuth } from '../../../features/auth/auth-provider';
 import { GoalRow } from '../../../features/goals/GoalRow';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
-import { useProfile, useSaveGoals, useUpsertLog, useWorkspace } from '../../../features/queries';
+import { useSaveGoals, useUpsertLog, useWorkspace } from '../../../features/queries';
 import { Button, EmptyState, ProgressRing, Skeleton, Text } from '../../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
@@ -31,14 +32,6 @@ const MONTHS_NOM = [
   'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
   'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
 ];
-
-function greeting(): string {
-  const h = new Date().getHours();
-  if (h < 6) return 'Доброй ночи';
-  if (h < 12) return 'Доброе утро';
-  if (h < 18) return 'Добрый день';
-  return 'Добрый вечер';
-}
 
 const pad = (n: number) => String(n).padStart(2, '0');
 function addMonths(d: string, n: number): string {
@@ -76,7 +69,6 @@ export default function HomeScreen() {
   const today = todayISO();
   const { user } = useAuth();
   const uid = user?.id;
-  const { data: profile } = useProfile(uid);
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
   const upsert = useUpsertLog(uid);
   const saveGoals = useSaveGoals(uid);
@@ -127,6 +119,12 @@ export default function HomeScreen() {
   };
 
   const selectedGoals = ws ? goalsForScope(ws.goals, scope, refDate) : [];
+  // completed goals sink to the bottom (stable within groups)
+  const orderedGoals = [...selectedGoals].sort((a, b) => {
+    const da = goalCurrent(a, mergedLogs, refDate) >= a.target ? 1 : 0;
+    const db = goalCurrent(b, mergedLogs, refDate) >= b.target ? 1 : 0;
+    return da - db;
+  });
   const scopeGoals = ws ? ws.goals.filter((g) => g.timeframe === scope) : [];
   const hasAnyGoals = !!ws && ws.goals.length > 0;
 
@@ -144,14 +142,6 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={c.accent} />}>
         <View style={{ width: '100%', maxWidth: 560, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
-          {/* header */}
-          <View style={{ paddingTop: spacing.md }}>
-            <Text variant="caption" tone="faint">
-              {greeting()}
-            </Text>
-            <Text variant="title">{profile?.firstName ?? '...'}</Text>
-          </View>
-
           {isError ? (
             <EmptyState
               emoji="⚠️"
@@ -163,7 +153,7 @@ export default function HomeScreen() {
           ) : (
             <>
               {/* day strip */}
-              <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+              <View style={{ flexDirection: 'row', gap: spacing.xs, paddingTop: spacing.md }}>
                 {weekDays.map((d, i) => {
                   const active = d === refDate;
                   const isToday = d === today;
@@ -207,7 +197,11 @@ export default function HomeScreen() {
               <View style={{ gap: spacing.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <NavArrow label="‹" onPress={() => stepPeriod(-1)} />
-                  <Text variant="heading">{periodTitle(scope, refDate, today)}</Text>
+                  {scope === 'day' ? (
+                    <View style={{ flex: 1 }} />
+                  ) : (
+                    <Text variant="heading">{periodTitle(scope, refDate, today)}</Text>
+                  )}
                   <NavArrow label="›" onPress={() => stepPeriod(1)} />
                 </View>
                 {refDate !== today ? (
@@ -299,7 +293,7 @@ export default function HomeScreen() {
                       />
                     ) : (
                       <View style={{ gap: spacing.md }}>
-                        {selectedGoals.map((g) => (
+                        {orderedGoals.map((g) => (
                           <GoalRow
                             key={g.id}
                             goal={g}

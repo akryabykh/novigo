@@ -1,7 +1,7 @@
 // Goal card with inline +/- logging. The stepper edits TODAY's value (you can't
 // undo past days, can't overshoot the period target). Minimal, lots of air.
 import * as Haptics from 'expo-haptics';
-import { Platform, Pressable, TextInput, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import type { DailyLog, Goal } from '../../core/domain';
 import { goalCardProgress, goalCurrent, goalMaxOnDate, goalOnDate } from '../../core/logic';
@@ -58,36 +58,17 @@ export function GoalRow({
           ) : null}
         </View>
 
-        <ProgressBar progress={progress} color={color} />
-
         {!readOnly ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <StepBtn label="−" onPress={() => setTodayTo(todayVal - 1)} disabled={todayVal <= 0} />
-            <View style={{ flex: 1, alignItems: 'center' }}>
-              <TextInput
-                value={String(todayVal)}
-                keyboardType="numeric"
-                selectTextOnFocus
-                onChangeText={(t) => {
-                  const n = parseFloat(t.replace(',', '.'));
-                  setTodayTo(Number.isFinite(n) ? n : 0);
-                }}
-                style={{
-                  fontFamily: typography.bold,
-                  fontSize: typography.size['2xl'],
-                  color: c.text,
-                  minWidth: 40,
-                  textAlign: 'center',
-                  padding: 0,
-                }}
-              />
-              <Text variant="caption" tone="faint">
-                сегодня
-              </Text>
+            <View style={{ flex: 1 }}>
+              <ProgressBar progress={progress} color={color} />
             </View>
             <StepBtn label="+" onPress={() => setTodayTo(todayVal + 1)} disabled={todayVal >= maxToday} />
           </View>
-        ) : null}
+        ) : (
+          <ProgressBar progress={progress} color={color} />
+        )}
       </View>
     </Card>
   );

@@ -6,7 +6,7 @@ import { Pressable, View } from 'react-native';
 
 import type { NewGoal } from '../../core/data';
 import type { Goal, Timeframe } from '../../core/domain';
-import { addDays, validateWeights } from '../../core/logic';
+import { addDays, endOfMonth, endOfWeek, validateWeights } from '../../core/logic';
 import type { GoalUpdate } from '../queries';
 import { Button, Card, Input, ProgressBar, Text } from '../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
@@ -42,16 +42,18 @@ let counter = 0;
 const blankRow = (start: string): Row => ({
   key: `n${counter++}`,
   title: '',
-  target: '',
+  target: '1', // по умолчанию 1
   weight: '',
   startDate: start,
   endDate: null,
 });
+// Кол-во ограничено 1–9; всё вне диапазона (старые данные) приводим к 1.
+const clampCount = (n: number): number => (Number.isInteger(n) && n >= 1 && n <= 9 ? n : 1);
 const fromGoal = (g: Goal): Row => ({
   key: g.id,
   id: g.id,
   title: g.title,
-  target: String(g.target),
+  target: String(clampCount(g.target)),
   weight: String(g.weight),
   startDate: g.startDate,
   endDate: g.endDate,
@@ -87,20 +89,26 @@ export function HorizonEditor({
   );
   const [error, setError] = useState<string | null>(null);
 
+  // period end for a "one-time" goal: just this day / this week / this month
+  const oneTimeEnd = (start: string): string =>
+    scope === 'day' ? start : scope === 'week' ? endOfWeek(start) : endOfMonth(start);
+
+  const equalize = (list: Row[]): Row[] => {
+    const n = list.length;
+    if (n === 0) return list;
+    const each = Math.floor((100 / n) * 10) / 10;
+    return list.map((x, i) => ({
+      ...x,
+      weight: String(i === 0 ? Math.round((100 - each * (n - 1)) * 10) / 10 : each),
+    }));
+  };
+
   const update = (key: string, patch: Partial<Row>) =>
     setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
-  const add = () => setRows((r) => [...r, blankRow(defaultStart)]);
+  // adding a goal re-splits weights equally across all goals (user can tweak after)
+  const add = () => setRows((r) => equalize([...r, blankRow(defaultStart)]));
   const remove = (key: string) => setRows((r) => r.filter((x) => x.key !== key));
-  const distribute = () =>
-    setRows((r) => {
-      const n = r.length;
-      if (n === 0) return r;
-      const each = Math.floor((100 / n) * 10) / 10;
-      return r.map((x, i) => ({
-        ...x,
-        weight: String(i === 0 ? Math.round((100 - each * (n - 1)) * 10) / 10 : each),
-      }));
-    });
+  const distribute = () => setRows((r) => equalize(r));
 
   const sum = rows.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0);
   const remaining = Math.round((100 - sum) * 10) / 10;
@@ -164,66 +172,73 @@ export function HorizonEditor({
         color={remaining < 0 ? c.danger : sum === 100 ? c.success : color}
       />
       <Text variant="caption" tone="faint">
-        Новые цели начнутся с {fmtDay(defaultStart)}, действуют «навсегда» или до выбранной даты.
+        Новые цели начнутся с {fmtDay(defaultStart)}. Период: только этот{' '}
+        {scope === 'day' ? 'день' : scope === 'week' ? 'неделя' : 'месяц'}, навсегда или до даты.
       </Text>
 
       {rows.map((r) => (
         <Card key={r.key}>
-          <View style={{ gap: spacing.md }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <View style={{ gap: spacing.sm }}>
+            {/* row 1: title + delete */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <Input value={r.title} onChangeText={(t) => update(r.key, { title: t })} placeholder="Название цели" />
+              </View>
               <Text variant="label" tone="danger" onPress={() => remove(r.key)}>
                 Удалить
               </Text>
             </View>
-            <Input value={r.title} onChangeText={(t) => update(r.key, { title: t })} placeholder="Название цели" />
-            <View style={{ flexDirection: 'row', gap: spacing.md }}>
-              <View style={{ flex: 1 }}>
+
+            {/* row 2: кол-во (1–9) + вес % + период */}
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: spacing.sm }}>
+              <NumberPicker
+                value={parseInt(r.target, 10) || 1}
+                color={color}
+                onChange={(n) => update(r.key, { target: String(n) })}
+              />
+              <View style={{ width: 92 }}>
                 <Input
-                  label="Цель"
-                  value={r.target}
-                  onChangeText={(t) => update(r.key, { target: t })}
-                  keyboardType="numeric"
-                  placeholder="30"
-                />
-              </View>
-              <View style={{ width: 96 }}>
-                <Input
-                  label="Вес %"
                   value={r.weight}
                   onChangeText={(t) => update(r.key, { weight: t })}
                   keyboardType="numeric"
-                  placeholder="50"
+                  placeholder="вес %"
                 />
               </View>
+              <Chip
+                label={scope === 'day' ? 'Только этот день' : scope === 'week' ? 'Только эта неделя' : 'Только этот месяц'}
+                active={r.endDate === oneTimeEnd(r.startDate)}
+                color={color}
+                onPress={() => update(r.key, { endDate: oneTimeEnd(r.startDate) })}
+              />
+              <Chip label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
+              <Chip
+                label="До даты"
+                active={!!r.endDate && r.endDate !== oneTimeEnd(r.startDate)}
+                color={color}
+                onPress={() =>
+                  update(r.key, {
+                    endDate:
+                      r.endDate && r.endDate !== oneTimeEnd(r.startDate) ? r.endDate : addMonths(r.startDate, 1),
+                  })
+                }
+              />
             </View>
 
-            {/* period */}
-            <View style={{ gap: spacing.sm }}>
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <Chip label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
-                <Chip
-                  label="До даты"
-                  active={!!r.endDate}
-                  color={color}
-                  onPress={() => update(r.key, { endDate: r.endDate ?? addMonths(r.startDate, 1) })}
+            {r.endDate && r.endDate !== oneTimeEnd(r.startDate) ? (
+              <View style={{ gap: spacing.sm }}>
+                <Input
+                  value={r.endDate}
+                  onChangeText={(t) => update(r.key, { endDate: t })}
+                  placeholder="2026-12-31"
+                  autoCapitalize="none"
                 />
-              </View>
-              {r.endDate ? (
-                <View style={{ gap: spacing.sm }}>
-                  <Input
-                    value={r.endDate}
-                    onChangeText={(t) => update(r.key, { endDate: t })}
-                    placeholder="2026-12-31"
-                    autoCapitalize="none"
-                  />
-                  <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                    <Chip label="+1 нед" color={color} onPress={() => update(r.key, { endDate: addDays(r.startDate, 7) })} />
-                    <Chip label="+1 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 1) })} />
-                    <Chip label="+3 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 3) })} />
-                  </View>
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <Chip label="+1 нед" color={color} onPress={() => update(r.key, { endDate: addDays(r.startDate, 7) })} />
+                  <Chip label="+1 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 1) })} />
+                  <Chip label="+3 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 3) })} />
                 </View>
-              ) : null}
-            </View>
+              </View>
+            ) : null}
           </View>
         </Card>
       ))}
@@ -277,6 +292,83 @@ export function HorizonEditor({
           <Button title="Отмена" variant="secondary" onPress={onCancel} />
         </View>
       </View>
+    </View>
+  );
+}
+
+function NumberPicker({
+  value,
+  color,
+  onChange,
+}: {
+  value: number;
+  color: string;
+  onChange: (n: number) => void;
+}) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const shown = nums.includes(value) ? value : 1;
+  return (
+    <View>
+      <Pressable
+        onPress={() => setOpen((o) => !o)}
+        style={{
+          height: 44,
+          paddingHorizontal: spacing.md,
+          borderRadius: radius.md,
+          borderWidth: 1.5,
+          borderColor: open ? color : c.border,
+          backgroundColor: c.surface,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+        }}>
+        <Text variant="label" tone="muted">
+          Кол-во
+        </Text>
+        <Text variant="label" style={{ color: c.text }}>
+          {shown}
+        </Text>
+        <Text variant="caption" tone="faint">
+          ▾
+        </Text>
+      </Pressable>
+      {open ? (
+        <View
+          style={{
+            marginTop: 6,
+            width: 120,
+            borderWidth: 1.5,
+            borderColor: c.border,
+            borderRadius: radius.md,
+            backgroundColor: c.surface,
+            overflow: 'hidden',
+          }}>
+          {nums.map((n, idx) => {
+            const active = n === shown;
+            return (
+              <Pressable
+                key={n}
+                onPress={() => {
+                  onChange(n);
+                  setOpen(false);
+                }}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: spacing.md,
+                  backgroundColor: active ? c.surfaceAlt : 'transparent',
+                  borderTopWidth: idx ? 1 : 0,
+                  borderTopColor: c.border,
+                }}>
+                <Text variant="label" style={{ color: active ? color : c.text }}>
+                  {n}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
