@@ -36,7 +36,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const uid = user?.id;
   const { data: profile } = useProfile(uid);
-  const { data: ws, isLoading, refetch, isRefetching } = useWorkspace(uid);
+  const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
   const upsert = useUpsertLog(uid);
 
   const [selected, setSelected] = useState<Timeframe>('day');
@@ -97,6 +97,14 @@ export default function HomeScreen() {
               <Skeleton height={96} rounded={radius.lg} />
               <Skeleton height={96} rounded={radius.lg} />
             </View>
+          ) : isError ? (
+            <EmptyState
+              emoji="⚠️"
+              title="Не удалось загрузить"
+              subtitle="Сервер не ответил вовремя. Проверь соединение и попробуй ещё раз."
+              ctaTitle="Повторить"
+              onCta={() => refetch()}
+            />
           ) : !ws?.session ? (
             <EmptyState
               emoji="🎯"

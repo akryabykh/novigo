@@ -14,10 +14,6 @@ interface AuthContextValue {
   session: Session | null;
   user: User | null;
   initializing: boolean;
-  /** local preview/admin mode (no Supabase) — day-scrubber demo */
-  admin: boolean;
-  enterAdmin: () => void;
-  exitAdmin: () => void;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   /** create account with email + password; with email-confirm off this also signs in */
   signUpWithPassword: (email: string, password: string) => Promise<void>;
@@ -42,7 +38,6 @@ const SLOW = 'Сервер долго не отвечает — попробуй
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
     withTimeout(supabase.auth.getSession(), 15000, SLOW)
@@ -107,9 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         user: session?.user ?? null,
         initializing,
-        admin,
-        enterAdmin: () => setAdmin(true),
-        exitAdmin: () => setAdmin(false),
         signInWithPassword,
         signUpWithPassword,
         completeProfile,
