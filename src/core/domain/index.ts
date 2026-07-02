@@ -1,6 +1,6 @@
 // Domain types. Core entities (Goal/DailyLog/Timeframe) live with the
 // pure logic (single source); here we re-export them and add user-facing entities.
-export type { Timeframe, Goal, DailyLog } from '../logic';
+export type { Timeframe, GoalKind, Goal, DailyLog } from '../logic';
 
 export interface Profile {
   id: string;

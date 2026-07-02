@@ -90,6 +90,26 @@ export function FlameIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconPr
   );
 }
 
+export function TargetIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none">
+      <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={strokeWidth} />
+      <Circle cx="12" cy="12" r="4.5" stroke={color} strokeWidth={strokeWidth} />
+    </Svg>
+  );
+}
+
+export function ListIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none">
+      <Polyline points="3.5 7 5.5 9 8.5 5.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <Polyline points="3.5 16 5.5 18 8.5 14.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1="12" y1="7.5" x2="20" y2="7.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <Line x1="12" y1="16.5" x2="20" y2="16.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function TrashIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
   return (
     <Svg {...base(size)} fill="none">

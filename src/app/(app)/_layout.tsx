@@ -12,7 +12,6 @@ export default function AppLayout() {
         animation: 'slide_from_right',
       }}>
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="goals/edit" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

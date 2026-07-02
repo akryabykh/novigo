@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import type { NewGoal } from '../../core/data';
-import type { Goal, Timeframe } from '../../core/domain';
+import type { Goal, GoalKind, Timeframe } from '../../core/domain';
 import { addDays, endOfMonth, endOfWeek, validateWeights } from '../../core/logic';
 import type { GoalUpdate } from '../queries';
 import { Button, Card, Input, ProgressBar, Text, TrashIcon } from '../../ui/components';
@@ -89,6 +89,7 @@ export interface SavePayload {
 
 export function HorizonEditor({
   scope,
+  kind = 'goal',
   existing,
   defaultStart,
   addNew,
@@ -97,6 +98,8 @@ export function HorizonEditor({
   onCancel,
 }: {
   scope: Timeframe;
+  /** 'goal' — count + manual weights; 'task' — checkbox item, weights auto-equal */
+  kind?: GoalKind;
   existing: Goal[];
   /** start date for newly-added goals (the day you're creating them on, never in the past) */
   defaultStart: string;
@@ -108,6 +111,7 @@ export function HorizonEditor({
 }) {
   const c = useColors();
   const color = timeframeColor[scope];
+  const isTask = kind === 'task';
 
   const [rows, setRows] = useState<Row[]>(() => {
     const base = existing.map(fromGoal);
@@ -139,27 +143,32 @@ export function HorizonEditor({
       weight: parseFloat(r.weight) || 0,
     }));
     for (const p of parsed) {
-      if (!p.title) return setError('У каждой цели должно быть название');
-      if (!Number.isFinite(p.target) || p.target <= 0) return setError(`Цель (> 0) для «${p.title || '—'}»`);
+      if (!p.title) return setError(isTask ? 'У каждой задачи должно быть название' : 'У каждой цели должно быть название');
+      if (!isTask && (!Number.isFinite(p.target) || p.target <= 0))
+        return setError(`Кол-во (> 0) для «${p.title || '—'}»`);
       if (p.row.endDate) {
         if (!/^\d{4}-\d{2}-\d{2}$/.test(p.row.endDate)) return setError('Дата в формате ГГГГ-ММ-ДД');
         if (p.row.endDate < p.row.startDate) return setError('Дата окончания не раньше начала');
       }
     }
-    if (!validateWeights(parsed).ok)
+    if (!isTask && !validateWeights(parsed).ok)
       return setError(`Сумма весов «${timeframeLabel[scope].toLowerCase()}» должна быть 100% (сейчас ${Math.round(sum)}%)`);
 
+    // tasks: count is always 1 and weights split equally
+    const eachW = Math.round((100 / parsed.length) * 10) / 10;
     const updates: GoalUpdate[] = [];
     const creates: NewGoal[] = [];
     for (const p of parsed) {
-      if (p.row.id)
-        updates.push({ id: p.row.id, title: p.title, target: p.target, weight: p.weight, endDate: p.row.endDate });
+      const target = isTask ? 1 : p.target;
+      const weight = isTask ? eachW : p.weight;
+      if (p.row.id) updates.push({ id: p.row.id, title: p.title, target, weight, endDate: p.row.endDate });
       else
         creates.push({
+          kind,
           title: p.title,
           timeframe: scope,
-          target: p.target,
-          weight: p.weight,
+          target,
+          weight,
           startDate: p.row.startDate,
           endDate: p.row.endDate,
         });
@@ -194,10 +203,10 @@ export function HorizonEditor({
               justifyContent: 'center',
             }}>
             <Text variant="label" style={{ color }}>
-              ＋ Ещё цель
+              ＋ Ещё {isTask ? 'задача' : 'цель'}
             </Text>
           </Pressable>
-          {rows.length > 1 ? (
+          {!isTask && rows.length > 1 ? (
             <Pressable
               onPress={distribute}
               style={{
@@ -224,20 +233,24 @@ export function HorizonEditor({
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: color }} />
         <Text variant="heading" style={{ flex: 1 }}>
-          Цели · {timeframeLabel[scope].toLowerCase()}
+          {isTask ? 'Задачи' : 'Цели'} · {timeframeLabel[scope].toLowerCase()}
         </Text>
-        <Text
-          variant="caption"
-          style={{ color: remaining === 0 ? c.success : remaining < 0 ? c.danger : c.textMuted }}>
-          {remaining === 0 ? '100% ✓' : remaining > 0 ? `ост. ${remaining}%` : `+${Math.abs(remaining)}%`}
-        </Text>
+        {!isTask ? (
+          <Text
+            variant="caption"
+            style={{ color: remaining === 0 ? c.success : remaining < 0 ? c.danger : c.textMuted }}>
+            {remaining === 0 ? '100% ✓' : remaining > 0 ? `ост. ${remaining}%` : `+${Math.abs(remaining)}%`}
+          </Text>
+        ) : null}
       </View>
-      <ProgressBar
-        progress={Math.min(1, sum / 100)}
-        color={remaining < 0 ? c.danger : sum === 100 ? c.success : color}
-      />
+      {!isTask ? (
+        <ProgressBar
+          progress={Math.min(1, sum / 100)}
+          color={remaining < 0 ? c.danger : sum === 100 ? c.success : color}
+        />
+      ) : null}
       <Text variant="caption" tone="faint">
-        Новые цели начнутся с {fmtDay(defaultStart)}. Период: только этот{' '}
+        Новые {isTask ? 'задачи' : 'цели'} начнутся с {fmtDay(defaultStart)}. Период: только этот{' '}
         {scope === 'day' ? 'день' : scope === 'week' ? 'неделя' : 'месяц'}, навсегда или до даты.
       </Text>
 
@@ -247,7 +260,11 @@ export function HorizonEditor({
             {/* row 1: title + delete */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <View style={{ flex: 1 }}>
-                <Input value={r.title} onChangeText={(t) => update(r.key, { title: t })} placeholder="Название цели" />
+                <Input
+                  value={r.title}
+                  onChangeText={(t) => update(r.key, { title: t })}
+                  placeholder={isTask ? 'Название задачи' : 'Название цели'}
+                />
               </View>
               <Pressable
                 onPress={() => remove(r.key)}
@@ -257,21 +274,25 @@ export function HorizonEditor({
               </Pressable>
             </View>
 
-            {/* row 2: кол-во (1–9) + вес % + период */}
+            {/* row 2: (кол-во + вес только для целей) + период */}
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: spacing.sm }}>
-              <NumberPicker
-                value={parseInt(r.target, 10) || 1}
-                color={color}
-                onChange={(n) => update(r.key, { target: String(n) })}
-              />
-              <View style={{ width: 92 }}>
-                <Input
-                  value={r.weight}
-                  onChangeText={(t) => update(r.key, { weight: t })}
-                  keyboardType="numeric"
-                  placeholder="вес %"
-                />
-              </View>
+              {!isTask ? (
+                <>
+                  <NumberPicker
+                    value={parseInt(r.target, 10) || 1}
+                    color={color}
+                    onChange={(n) => update(r.key, { target: String(n) })}
+                  />
+                  <View style={{ width: 92 }}>
+                    <Input
+                      value={r.weight}
+                      onChangeText={(t) => update(r.key, { weight: t })}
+                      keyboardType="numeric"
+                      placeholder="вес %"
+                    />
+                  </View>
+                </>
+              ) : null}
               <Chip
                 label={scope === 'day' ? 'Только этот день' : scope === 'week' ? 'Только эта неделя' : 'Только этот месяц'}
                 active={r.endDate === oneTimeEnd(r.startDate)}

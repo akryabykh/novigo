@@ -14,6 +14,9 @@
 export type Timeframe = 'day' | 'week' | 'month';
 export const TIMEFRAMES: Timeframe[] = ['day', 'week', 'month'];
 
+/** 'goal' — полноценная цель (кол-во, веса); 'task' — задача-галочка. */
+export type GoalKind = 'goal' | 'task';
+
 export const WEEK_DAYS = 7;
 
 // Доли вложенных колец:
@@ -27,6 +30,7 @@ export const MONTH_OWN_WEIGHT = 0.2;
 export interface Goal {
   id: string;
   userId: string;
+  kind: GoalKind;
   title: string;
   timeframe: Timeframe;
   target: number; // цель за период своего горизонта

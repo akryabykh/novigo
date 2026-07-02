@@ -14,6 +14,7 @@ export interface ProfileRow {
 export interface GoalRow {
   id: string;
   user_id: string;
+  kind: Goal['kind'];
   title: string;
   timeframe: Goal['timeframe'];
   target: number | string;
@@ -50,6 +51,7 @@ export const toProfile = (r: ProfileRow): Profile => ({
 export const toGoal = (r: GoalRow): Goal => ({
   id: r.id,
   userId: r.user_id,
+  kind: r.kind ?? 'goal',
   title: r.title,
   timeframe: r.timeframe,
   target: num(r.target),
