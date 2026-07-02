@@ -15,6 +15,7 @@ export async function listGoalsByUser(userId: string): Promise<Goal[]> {
 }
 
 export interface NewGoal {
+  kind: Goal['kind'];
   title: string;
   timeframe: Timeframe;
   target: number;
@@ -27,6 +28,7 @@ export async function createGoals(userId: string, goals: NewGoal[]): Promise<Goa
   if (goals.length === 0) return [];
   const rows = goals.map((g) => ({
     user_id: userId,
+    kind: g.kind,
     title: g.title,
     timeframe: g.timeframe,
     target: g.target,

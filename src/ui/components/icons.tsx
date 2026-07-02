@@ -90,6 +90,63 @@ export function FlameIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconPr
   );
 }
 
+export function GearIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none">
+      <Circle cx="12" cy="12" r="3.2" stroke={color} strokeWidth={strokeWidth} />
+      <Path
+        d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.1 5.1l2.1 2.1M16.8 16.8l2.1 2.1M18.9 5.1l-2.1 2.1M7.2 16.8l-2.1 2.1"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+export function TargetIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none">
+      <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={strokeWidth} />
+      <Circle cx="12" cy="12" r="4.5" stroke={color} strokeWidth={strokeWidth} />
+    </Svg>
+  );
+}
+
+export function ListIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none">
+      <Polyline points="3.5 7 5.5 9 8.5 5.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <Polyline points="3.5 16 5.5 18 8.5 14.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+      <Line x1="12" y1="7.5" x2="20" y2="7.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <Line x1="12" y1="16.5" x2="20" y2="16.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+export function TrashIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none">
+      <Polyline
+        points="3 6 5 6 21 6"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Line x1="10" y1="11" x2="10" y2="17" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <Line x1="14" y1="11" x2="14" y2="17" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function ChevronLeftIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
   return (
     <Svg {...base(size)} fill="none">

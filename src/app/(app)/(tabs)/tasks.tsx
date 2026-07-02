@@ -15,10 +15,10 @@ import {
   todayISO,
 } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
-import { GoalRow } from '../../../features/goals/GoalRow';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
+import { TaskRow } from '../../../features/goals/TaskRow';
 import { useSaveGoals, useUpsertLog, useWorkspace, type GoalUpdate } from '../../../features/queries';
-import { Button, EmptyState, GearIcon, PlusIcon, ProgressRing, Skeleton, Text } from '../../../ui/components';
+import { Button, EmptyState, PlusIcon, ProgressRing, Skeleton, Text } from '../../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
@@ -45,24 +45,7 @@ function addMonths(d: string, n: number): string {
 const dayNum = (d: string) => Number(d.split('-')[2]);
 const monthOf = (d: string) => Number(d.split('-')[1]) - 1;
 
-// Deleting a goal spreads its weight evenly across the remaining goals of the horizon.
-function redistribute(siblings: Goal[], freed: number): GoalUpdate[] {
-  const n = siblings.length;
-  if (n === 0) return [];
-  const share = freed / n;
-  const w = siblings.map((x) => Math.round((x.weight + share) * 10) / 10);
-  const diff = Math.round((100 - w.reduce((a, b) => a + b, 0)) * 10) / 10;
-  w[0] = Math.round((w[0] + diff) * 10) / 10;
-  return siblings.map((x, i) => ({ id: x.id, title: x.title, target: x.target, weight: w[i], endDate: x.endDate }));
-}
-
 function periodTitle(scope: Timeframe, d: string, today: string): string {
-  if (scope === 'day') {
-    if (d === today) return 'Сегодня';
-    if (d === addDays(today, -1)) return 'Вчера';
-    if (d === addDays(today, 1)) return 'Завтра';
-    return `${dayNum(d)} ${MONTHS_GEN[monthOf(d)]}`;
-  }
   if (scope === 'week') {
     const s = startOfWeek(d);
     const e = endOfWeek(d);
@@ -75,7 +58,21 @@ function periodTitle(scope: Timeframe, d: string, today: string): string {
   return y === cy ? MONTHS_NOM[monthOf(d)] : `${MONTHS_NOM[monthOf(d)]} ${y}`;
 }
 
-export default function HomeScreen() {
+// Tasks keep equal weights; on delete re-split evenly among the remaining ones.
+function equalizeTasks(siblings: Goal[]): GoalUpdate[] {
+  const n = siblings.length;
+  if (n === 0) return [];
+  const each = Math.floor((100 / n) * 10) / 10;
+  return siblings.map((x, i) => ({
+    id: x.id,
+    title: x.title,
+    target: x.target,
+    weight: i === 0 ? Math.round((100 - each * (n - 1)) * 10) / 10 : each,
+    endDate: x.endDate,
+  }));
+}
+
+export default function TasksScreen() {
   const c = useColors();
   const today = todayISO();
   const { user } = useAuth();
@@ -91,7 +88,6 @@ export default function HomeScreen() {
   const [editing, setEditing] = useState(false);
   const [addNew, setAddNew] = useState(false);
 
-  // merge optimistic per-(goal,date) overrides over server logs
   const mergedLogs = useMemo<DailyLog[]>(() => {
     if (!ws) return [];
     const ovKeys = new Set(Object.keys(overrides));
@@ -103,21 +99,17 @@ export default function HomeScreen() {
     return [...base, ...overs];
   }, [ws, overrides]);
 
-  // this screen shows only real goals (kind === 'goal'); tasks live on the Tasks tab
-  const goals = useMemo(() => (ws ? ws.goals.filter((g) => g.kind !== 'task') : []), [ws]);
-  const goalIds = useMemo(() => new Set(goals.map((g) => g.id)), [goals]);
+  const tasks = useMemo(() => (ws ? ws.goals.filter((g) => g.kind === 'task') : []), [ws]);
+  const taskIds = useMemo(() => new Set(tasks.map((g) => g.id)), [tasks]);
 
-  const rings = useMemo(
-    () => computeRings(goals, mergedLogs, refDate),
-    [goals, mergedLogs, refDate],
-  );
+  const rings = useMemo(() => computeRings(tasks, mergedLogs, refDate), [tasks, mergedLogs, refDate]);
 
   const weekDays = useMemo(() => enumerateDates(startOfWeek(refDate), endOfWeek(refDate)), [refDate]);
   const daysWithProgress = useMemo(() => {
     const s = new Set<string>();
-    for (const l of mergedLogs) if (l.value > 0 && goalIds.has(l.goalId)) s.add(l.date);
+    for (const l of mergedLogs) if (l.value > 0 && taskIds.has(l.goalId)) s.add(l.date);
     return s;
-  }, [mergedLogs, goalIds]);
+  }, [mergedLogs, taskIds]);
 
   const stepPeriod = (dir: 1 | -1) => {
     setRefDate((d) =>
@@ -134,17 +126,17 @@ export default function HomeScreen() {
     }, 500);
   };
 
-  const selectedGoals = goalsForScope(goals, scope, refDate);
-  // completed goals sink to the bottom (stable within groups)
-  const orderedGoals = [...selectedGoals].sort((a, b) => {
+  const selectedTasks = goalsForScope(tasks, scope, refDate);
+  // done tasks sink to the bottom
+  const orderedTasks = [...selectedTasks].sort((a, b) => {
     const da = goalCurrent(a, mergedLogs, refDate) >= a.target ? 1 : 0;
     const db = goalCurrent(b, mergedLogs, refDate) >= b.target ? 1 : 0;
     return da - db;
   });
-  const hasAnyGoals = goals.length > 0;
+  const hasAnyTasks = tasks.length > 0;
 
-  const fillAll = () => selectedGoals.forEach((g) => save(g.id, goalMaxOnDate(g, mergedLogs, refDate)));
-  const clearAll = () => selectedGoals.forEach((g) => save(g.id, 0));
+  const doneAll = () => selectedTasks.forEach((g) => save(g.id, goalMaxOnDate(g, mergedLogs, refDate)));
+  const clearAll = () => selectedTasks.forEach((g) => save(g.id, 0));
 
   const closeEditor = () => {
     setEditing(false);
@@ -154,16 +146,12 @@ export default function HomeScreen() {
     setAddNew(true);
     setEditing(true);
   };
-  const openEdit = () => {
-    setAddNew(false);
-    setEditing(true);
-  };
   const submitHorizon = (payload: SavePayload) =>
     saveGoals.mutate(payload, { onSuccess: closeEditor });
 
-  const deleteGoal = (goal: Goal) => {
-    const siblings = goals.filter((x) => x.timeframe === goal.timeframe && x.id !== goal.id);
-    saveGoals.mutate({ updates: redistribute(siblings, goal.weight), creates: [], deletes: [goal.id] });
+  const deleteTask = (task: Goal) => {
+    const siblings = tasks.filter((x) => x.timeframe === task.timeframe && x.id !== task.id);
+    saveGoals.mutate({ updates: equalizeTasks(siblings), creates: [], deletes: [task.id] });
   };
 
   return (
@@ -207,9 +195,7 @@ export default function HomeScreen() {
                       <Text variant="caption" style={{ color: active ? '#fff' : c.textFaint }}>
                         {WD[i]}
                       </Text>
-                      <Text
-                        variant="label"
-                        style={{ color: active ? '#fff' : isToday ? c.accent : c.text }}>
+                      <Text variant="label" style={{ color: active ? '#fff' : isToday ? c.accent : c.text }}>
                         {dayNum(d)}
                       </Text>
                       <View
@@ -229,11 +215,7 @@ export default function HomeScreen() {
               <View style={{ gap: spacing.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <NavArrow label="‹" onPress={() => stepPeriod(-1)} />
-                  {scope === 'day' ? (
-                    <View style={{ flex: 1 }} />
-                  ) : (
-                    <Text variant="heading">{periodTitle(scope, refDate, today)}</Text>
-                  )}
+                  {scope === 'day' ? <View style={{ flex: 1 }} /> : <Text variant="heading">{periodTitle(scope, refDate, today)}</Text>}
                   <NavArrow label="›" onPress={() => stepPeriod(1)} />
                 </View>
                 {refDate !== today ? (
@@ -264,7 +246,7 @@ export default function HomeScreen() {
                       key={tf}
                       onPress={() => {
                         setScope(tf);
-                        setEditing(false);
+                        closeEditor();
                       }}
                       style={{
                         flex: 1,
@@ -287,108 +269,90 @@ export default function HomeScreen() {
 
               {isLoading ? (
                 <View style={{ gap: spacing.md }}>
-                  <Skeleton height={96} rounded={radius.lg} />
-                  <Skeleton height={96} rounded={radius.lg} />
+                  <Skeleton height={56} rounded={radius.lg} />
+                  <Skeleton height={56} rounded={radius.lg} />
                 </View>
+              ) : editing ? (
+                <HorizonEditor
+                  scope={scope}
+                  kind="task"
+                  existing={selectedTasks}
+                  defaultStart={refDate > today ? refDate : today}
+                  addNew={addNew}
+                  onSave={submitHorizon}
+                  onCancel={closeEditor}
+                  saving={saveGoals.isPending}
+                />
               ) : (
-                editing ? (
-                  <HorizonEditor
-                    scope={scope}
-                    existing={selectedGoals}
-                    defaultStart={refDate > today ? refDate : today}
-                    addNew={addNew}
-                    onSave={submitHorizon}
-                    onCancel={closeEditor}
-                    saving={saveGoals.isPending}
-                  />
-                ) : (
-                  <>
-                    {/* goals header + add */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
-                      <Text variant="heading" style={{ flex: 1 }}>
-                        Цели · {timeframeLabel[scope].toLowerCase()}
-                      </Text>
-                      {hasAnyGoals ? (
-                        <>
-                          <Pressable
-                            onPress={openEdit}
-                            hitSlop={6}
-                            style={({ pressed }) => ({
-                              width: 34,
-                              height: 34,
-                              borderRadius: radius.md,
-                              backgroundColor: c.surfaceAlt,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              opacity: pressed ? 0.7 : 1,
-                            })}>
-                            <GearIcon size={18} color={c.textMuted} strokeWidth={1.9} />
-                          </Pressable>
-                          <Pressable
-                            onPress={openAdd}
-                            hitSlop={6}
-                            style={({ pressed }) => ({
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: 4,
-                              paddingHorizontal: spacing.md,
-                              height: 34,
-                              borderRadius: radius.md,
-                              backgroundColor: c.surfaceAlt,
-                              opacity: pressed ? 0.7 : 1,
-                            })}>
-                            <PlusIcon size={16} color={c.accent} strokeWidth={2.2} />
-                            <Text variant="label" tone="accent">
-                              Добавить
-                            </Text>
-                          </Pressable>
-                        </>
+                <>
+                  {/* header + add */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
+                    <Text variant="heading" style={{ flex: 1 }}>
+                      Задачи · {timeframeLabel[scope].toLowerCase()}
+                    </Text>
+                    {hasAnyTasks ? (
+                      <Pressable
+                        onPress={openAdd}
+                        hitSlop={6}
+                        style={({ pressed }) => ({
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                          paddingHorizontal: spacing.md,
+                          height: 34,
+                          borderRadius: radius.md,
+                          backgroundColor: c.surfaceAlt,
+                          opacity: pressed ? 0.7 : 1,
+                        })}>
+                        <PlusIcon size={16} color={c.accent} strokeWidth={2.2} />
+                        <Text variant="label" tone="accent">
+                          Добавить
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  {!hasAnyTasks ? (
+                    <EmptyState
+                      emoji="✅"
+                      title="Задач пока нет"
+                      subtitle="Добавь задачи на день, неделю и месяц — отмечай галочкой по мере выполнения."
+                      ctaTitle="Добавить задачу"
+                      onCta={openAdd}
+                    />
+                  ) : (
+                    <View style={{ gap: spacing.md }}>
+                      {orderedTasks.map((t) => (
+                        <TaskRow
+                          key={t.id}
+                          task={t}
+                          logs={mergedLogs}
+                          date={refDate}
+                          onToggle={save}
+                          onDelete={() => deleteTask(t)}
+                        />
+                      ))}
+
+                      {selectedTasks.length === 0 ? (
+                        <Text variant="body" tone="muted">
+                          На «{timeframeLabel[scope].toLowerCase()}» задач нет.
+                        </Text>
+                      ) : null}
+
+                      {selectedTasks.length > 0 ? (
+                        <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                          <View style={{ flex: 1 }}>
+                            <Button title="Отметить всё" variant="secondary" onPress={doneAll} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Button title="Очистить" variant="ghost" onPress={clearAll} />
+                          </View>
+                        </View>
                       ) : null}
                     </View>
-
-                    {!hasAnyGoals ? (
-                      <EmptyState
-                        emoji="🎯"
-                        title="Поставь цели"
-                        subtitle="Задай цели на день, неделю и месяц — кольца начнут заполняться."
-                        ctaTitle="Поставить цели"
-                        onCta={openAdd}
-                      />
-                    ) : (
-                      <View style={{ gap: spacing.md }}>
-                        {orderedGoals.map((g) => (
-                          <GoalRow
-                            key={g.id}
-                            goal={g}
-                            logs={mergedLogs}
-                            date={refDate}
-                            onSave={save}
-                            onDelete={() => deleteGoal(g)}
-                          />
-                        ))}
-
-                        {selectedGoals.length === 0 ? (
-                          <Text variant="body" tone="muted">
-                            На «{timeframeLabel[scope].toLowerCase()}» целей нет.
-                          </Text>
-                        ) : null}
-
-                        {/* bulk actions for the selected day */}
-                        {selectedGoals.length > 0 ? (
-                          <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                            <View style={{ flex: 1 }}>
-                              <Button title="Выполнить всё" variant="secondary" onPress={fillAll} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Button title="Очистить" variant="ghost" onPress={clearAll} />
-                            </View>
-                          </View>
-                        ) : null}
-                      </View>
-                    )}
-                  </>
-                )
+                  )}
+                </>
               )}
             </>
           )}
