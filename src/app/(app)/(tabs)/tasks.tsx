@@ -133,7 +133,6 @@ export default function TasksScreen() {
     const db = goalCurrent(b, mergedLogs, refDate) >= b.target ? 1 : 0;
     return da - db;
   });
-  const scopeTasks = tasks.filter((g) => g.timeframe === scope);
   const hasAnyTasks = tasks.length > 0;
 
   const doneAll = () => selectedTasks.forEach((g) => save(g.id, goalMaxOnDate(g, mergedLogs, refDate)));
@@ -277,7 +276,7 @@ export default function TasksScreen() {
                 <HorizonEditor
                   scope={scope}
                   kind="task"
-                  existing={scopeTasks}
+                  existing={selectedTasks}
                   defaultStart={refDate > today ? refDate : today}
                   addNew={addNew}
                   onSave={submitHorizon}

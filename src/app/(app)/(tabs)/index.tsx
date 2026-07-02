@@ -141,7 +141,6 @@ export default function HomeScreen() {
     const db = goalCurrent(b, mergedLogs, refDate) >= b.target ? 1 : 0;
     return da - db;
   });
-  const scopeGoals = goals.filter((g) => g.timeframe === scope);
   const hasAnyGoals = goals.length > 0;
 
   const fillAll = () => selectedGoals.forEach((g) => save(g.id, goalMaxOnDate(g, mergedLogs, refDate)));
@@ -295,7 +294,7 @@ export default function HomeScreen() {
                 editing ? (
                   <HorizonEditor
                     scope={scope}
-                    existing={scopeGoals}
+                    existing={selectedGoals}
                     defaultStart={refDate > today ? refDate : today}
                     addNew={addNew}
                     onSave={submitHorizon}
