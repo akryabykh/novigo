@@ -18,7 +18,7 @@ import { useAuth } from '../../../features/auth/auth-provider';
 import { GoalRow } from '../../../features/goals/GoalRow';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
 import { useSaveGoals, useUpsertLog, useWorkspace, type GoalUpdate } from '../../../features/queries';
-import { Button, EmptyState, PlusIcon, ProgressRing, Skeleton, Text } from '../../../ui/components';
+import { Button, EmptyState, GearIcon, PlusIcon, ProgressRing, Skeleton, Text } from '../../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
@@ -153,6 +153,10 @@ export default function HomeScreen() {
   };
   const openAdd = () => {
     setAddNew(true);
+    setEditing(true);
+  };
+  const openEdit = () => {
+    setAddNew(false);
     setEditing(true);
   };
   const submitHorizon = (payload: SavePayload) =>
@@ -307,24 +311,40 @@ export default function HomeScreen() {
                         Цели · {timeframeLabel[scope].toLowerCase()}
                       </Text>
                       {hasAnyGoals ? (
-                        <Pressable
-                          onPress={openAdd}
-                          hitSlop={6}
-                          style={({ pressed }) => ({
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 4,
-                            paddingHorizontal: spacing.md,
-                            height: 34,
-                            borderRadius: radius.md,
-                            backgroundColor: c.surfaceAlt,
-                            opacity: pressed ? 0.7 : 1,
-                          })}>
-                          <PlusIcon size={16} color={c.accent} strokeWidth={2.2} />
-                          <Text variant="label" tone="accent">
-                            Добавить
-                          </Text>
-                        </Pressable>
+                        <>
+                          <Pressable
+                            onPress={openEdit}
+                            hitSlop={6}
+                            style={({ pressed }) => ({
+                              width: 34,
+                              height: 34,
+                              borderRadius: radius.md,
+                              backgroundColor: c.surfaceAlt,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: pressed ? 0.7 : 1,
+                            })}>
+                            <GearIcon size={18} color={c.textMuted} strokeWidth={1.9} />
+                          </Pressable>
+                          <Pressable
+                            onPress={openAdd}
+                            hitSlop={6}
+                            style={({ pressed }) => ({
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 4,
+                              paddingHorizontal: spacing.md,
+                              height: 34,
+                              borderRadius: radius.md,
+                              backgroundColor: c.surfaceAlt,
+                              opacity: pressed ? 0.7 : 1,
+                            })}>
+                            <PlusIcon size={16} color={c.accent} strokeWidth={2.2} />
+                            <Text variant="label" tone="accent">
+                              Добавить
+                            </Text>
+                          </Pressable>
+                        </>
                       ) : null}
                     </View>
 

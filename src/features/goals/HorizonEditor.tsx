@@ -161,17 +161,11 @@ export function HorizonEditor({
     for (const p of parsed) {
       const target = isTask ? 1 : p.target;
       const weight = isTask ? eachW : p.weight;
-      if (p.row.id) updates.push({ id: p.row.id, title: p.title, target, weight, endDate: p.row.endDate });
+      // tasks are always bound to their period (this day / week / month)
+      const endDate = isTask ? oneTimeEnd(p.row.startDate) : p.row.endDate;
+      if (p.row.id) updates.push({ id: p.row.id, title: p.title, target, weight, endDate });
       else
-        creates.push({
-          kind,
-          title: p.title,
-          timeframe: scope,
-          target,
-          weight,
-          startDate: p.row.startDate,
-          endDate: p.row.endDate,
-        });
+        creates.push({ kind, title: p.title, timeframe: scope, target, weight, startDate: p.row.startDate, endDate });
     }
     const keptIds = new Set(rows.map((r) => r.id).filter(Boolean) as string[]);
     const deletes = existing.map((g) => g.id).filter((id) => !keptIds.has(id));
@@ -250,8 +244,9 @@ export function HorizonEditor({
         />
       ) : null}
       <Text variant="caption" tone="faint">
-        Новые {isTask ? 'задачи' : 'цели'} начнутся с {fmtDay(defaultStart)}. Период: только этот{' '}
-        {scope === 'day' ? 'день' : scope === 'week' ? 'неделя' : 'месяц'}, навсегда или до даты.
+        {isTask
+          ? `Задачи — только на ${scope === 'day' ? 'этот день' : scope === 'week' ? 'эту неделю' : 'этот месяц'} (с ${fmtDay(defaultStart)}).`
+          : `Новые цели начнутся с ${fmtDay(defaultStart)} — навсегда или до выбранной даты.`}
       </Text>
 
       {rows.map((r) => (
@@ -274,46 +269,33 @@ export function HorizonEditor({
               </Pressable>
             </View>
 
-            {/* row 2: (кол-во + вес только для целей) + период */}
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: spacing.sm }}>
-              {!isTask ? (
-                <>
-                  <NumberPicker
-                    value={parseInt(r.target, 10) || 1}
-                    color={color}
-                    onChange={(n) => update(r.key, { target: String(n) })}
+            {/* row 2 (goals only): кол-во + вес % + период. tasks are checkbox-only. */}
+            {!isTask ? (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: spacing.sm }}>
+                <NumberPicker
+                  value={parseInt(r.target, 10) || 1}
+                  color={color}
+                  onChange={(n) => update(r.key, { target: String(n) })}
+                />
+                <View style={{ width: 92 }}>
+                  <Input
+                    value={r.weight}
+                    onChangeText={(t) => update(r.key, { weight: t })}
+                    keyboardType="numeric"
+                    placeholder="вес %"
                   />
-                  <View style={{ width: 92 }}>
-                    <Input
-                      value={r.weight}
-                      onChangeText={(t) => update(r.key, { weight: t })}
-                      keyboardType="numeric"
-                      placeholder="вес %"
-                    />
-                  </View>
-                </>
-              ) : null}
-              <Chip
-                label={scope === 'day' ? 'Только этот день' : scope === 'week' ? 'Только эта неделя' : 'Только этот месяц'}
-                active={r.endDate === oneTimeEnd(r.startDate)}
-                color={color}
-                onPress={() => update(r.key, { endDate: oneTimeEnd(r.startDate) })}
-              />
-              <Chip label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
-              <Chip
-                label="До даты"
-                active={!!r.endDate && r.endDate !== oneTimeEnd(r.startDate)}
-                color={color}
-                onPress={() =>
-                  update(r.key, {
-                    endDate:
-                      r.endDate && r.endDate !== oneTimeEnd(r.startDate) ? r.endDate : addMonths(r.startDate, 1),
-                  })
-                }
-              />
-            </View>
+                </View>
+                <Chip label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
+                <Chip
+                  label="До даты"
+                  active={!!r.endDate}
+                  color={color}
+                  onPress={() => update(r.key, { endDate: r.endDate ?? addMonths(r.startDate, 1) })}
+                />
+              </View>
+            ) : null}
 
-            {r.endDate && r.endDate !== oneTimeEnd(r.startDate) ? (
+            {!isTask && r.endDate ? (
               <View style={{ gap: spacing.sm }}>
                 <Input
                   value={r.endDate}
