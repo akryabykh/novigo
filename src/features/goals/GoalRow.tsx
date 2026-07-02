@@ -5,7 +5,7 @@ import { Platform, Pressable, View } from 'react-native';
 
 import type { DailyLog, Goal } from '../../core/domain';
 import { goalCardProgress, goalCurrent, goalMaxOnDate, goalOnDate } from '../../core/logic';
-import { Card, ProgressBar, Text } from '../../ui/components';
+import { Card, ProgressBar, Text, TrashIcon } from '../../ui/components';
 import { radius, spacing, timeframeColor, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 
@@ -14,7 +14,7 @@ export function GoalRow({
   logs,
   date,
   onSave,
-  onEdit,
+  onDelete,
   readOnly,
 }: {
   goal: Goal;
@@ -22,7 +22,7 @@ export function GoalRow({
   /** the selected calendar date the stepper edits */
   date: string;
   onSave?: (goalId: string, dateValue: number) => void;
-  onEdit?: () => void;
+  onDelete?: () => void;
   readOnly?: boolean;
 }) {
   const c = useColors();
@@ -51,10 +51,10 @@ export function GoalRow({
           <Text variant="caption" style={{ color: done ? color : c.textFaint }}>
             {Math.round(current * 100) / 100} / {goal.target}
           </Text>
-          {onEdit ? (
-            <Text variant="caption" tone="accent" onPress={onEdit}>
-              Изм.
-            </Text>
+          {onDelete ? (
+            <Pressable onPress={onDelete} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+              <TrashIcon size={18} color={c.textFaint} strokeWidth={1.8} />
+            </Pressable>
           ) : null}
         </View>
 

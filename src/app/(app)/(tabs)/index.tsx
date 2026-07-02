@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { DailyLog, Timeframe } from '../../../core/domain';
+import type { DailyLog, Goal, Timeframe } from '../../../core/domain';
 import {
   addDays,
   computeRings,
@@ -17,8 +17,8 @@ import {
 import { useAuth } from '../../../features/auth/auth-provider';
 import { GoalRow } from '../../../features/goals/GoalRow';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
-import { useSaveGoals, useUpsertLog, useWorkspace } from '../../../features/queries';
-import { Button, EmptyState, ProgressRing, Skeleton, Text } from '../../../ui/components';
+import { useSaveGoals, useUpsertLog, useWorkspace, type GoalUpdate } from '../../../features/queries';
+import { Button, EmptyState, PlusIcon, ProgressRing, Skeleton, Text } from '../../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
@@ -44,6 +44,17 @@ function addMonths(d: string, n: number): string {
 }
 const dayNum = (d: string) => Number(d.split('-')[2]);
 const monthOf = (d: string) => Number(d.split('-')[1]) - 1;
+
+// Deleting a goal spreads its weight evenly across the remaining goals of the horizon.
+function redistribute(siblings: Goal[], freed: number): GoalUpdate[] {
+  const n = siblings.length;
+  if (n === 0) return [];
+  const share = freed / n;
+  const w = siblings.map((x) => Math.round((x.weight + share) * 10) / 10);
+  const diff = Math.round((100 - w.reduce((a, b) => a + b, 0)) * 10) / 10;
+  w[0] = Math.round((w[0] + diff) * 10) / 10;
+  return siblings.map((x, i) => ({ id: x.id, title: x.title, target: x.target, weight: w[i], endDate: x.endDate }));
+}
 
 function periodTitle(scope: Timeframe, d: string, today: string): string {
   if (scope === 'day') {
@@ -78,6 +89,7 @@ export default function HomeScreen() {
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [editing, setEditing] = useState(false);
+  const [addNew, setAddNew] = useState(false);
 
   // merge optimistic per-(goal,date) overrides over server logs
   const mergedLogs = useMemo<DailyLog[]>(() => {
@@ -131,8 +143,22 @@ export default function HomeScreen() {
   const fillAll = () => selectedGoals.forEach((g) => save(g.id, goalMaxOnDate(g, mergedLogs, refDate)));
   const clearAll = () => selectedGoals.forEach((g) => save(g.id, 0));
 
+  const closeEditor = () => {
+    setEditing(false);
+    setAddNew(false);
+  };
+  const openAdd = () => {
+    setAddNew(true);
+    setEditing(true);
+  };
   const submitHorizon = (payload: SavePayload) =>
-    saveGoals.mutate(payload, { onSuccess: () => setEditing(false) });
+    saveGoals.mutate(payload, { onSuccess: closeEditor });
+
+  const deleteGoal = (goal: Goal) => {
+    if (!ws) return;
+    const siblings = ws.goals.filter((x) => x.timeframe === goal.timeframe && x.id !== goal.id);
+    saveGoals.mutate({ updates: redistribute(siblings, goal.weight), creates: [], deletes: [goal.id] });
+  };
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
@@ -264,22 +290,38 @@ export default function HomeScreen() {
                     scope={scope}
                     existing={scopeGoals}
                     defaultStart={refDate > today ? refDate : today}
+                    addNew={addNew}
                     onSave={submitHorizon}
-                    onCancel={() => setEditing(false)}
+                    onCancel={closeEditor}
                     saving={saveGoals.isPending}
                   />
                 ) : (
                   <>
-                    {/* goals header */}
+                    {/* goals header + add */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                       <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
                       <Text variant="heading" style={{ flex: 1 }}>
                         Цели · {timeframeLabel[scope].toLowerCase()}
                       </Text>
-                      {scopeGoals.length > 0 ? (
-                        <Text variant="caption" tone="accent" onPress={() => setEditing(true)}>
-                          Изменить
-                        </Text>
+                      {hasAnyGoals ? (
+                        <Pressable
+                          onPress={openAdd}
+                          hitSlop={6}
+                          style={({ pressed }) => ({
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 4,
+                            paddingHorizontal: spacing.md,
+                            height: 34,
+                            borderRadius: radius.md,
+                            backgroundColor: c.surfaceAlt,
+                            opacity: pressed ? 0.7 : 1,
+                          })}>
+                          <PlusIcon size={16} color={c.accent} strokeWidth={2.2} />
+                          <Text variant="label" tone="accent">
+                            Добавить
+                          </Text>
+                        </Pressable>
                       ) : null}
                     </View>
 
@@ -289,7 +331,7 @@ export default function HomeScreen() {
                         title="Поставь цели"
                         subtitle="Задай цели на день, неделю и месяц — кольца начнут заполняться."
                         ctaTitle="Поставить цели"
-                        onCta={() => setEditing(true)}
+                        onCta={openAdd}
                       />
                     ) : (
                       <View style={{ gap: spacing.md }}>
@@ -300,7 +342,7 @@ export default function HomeScreen() {
                             logs={mergedLogs}
                             date={refDate}
                             onSave={save}
-                            onEdit={() => setEditing(true)}
+                            onDelete={() => deleteGoal(g)}
                           />
                         ))}
 
@@ -309,22 +351,6 @@ export default function HomeScreen() {
                             На «{timeframeLabel[scope].toLowerCase()}» целей нет.
                           </Text>
                         ) : null}
-
-                        <Pressable
-                          onPress={() => setEditing(true)}
-                          style={{
-                            height: 46,
-                            borderRadius: radius.md,
-                            borderWidth: 1.5,
-                            borderColor: c.border,
-                            borderStyle: 'dashed',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}>
-                          <Text variant="label" style={{ color: timeframeColor[scope] }}>
-                            Добавить цель · {timeframeLabel[scope].toLowerCase()}
-                          </Text>
-                        </Pressable>
 
                         {/* bulk actions for the selected day */}
                         {selectedGoals.length > 0 ? (

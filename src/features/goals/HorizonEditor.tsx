@@ -8,7 +8,7 @@ import type { NewGoal } from '../../core/data';
 import type { Goal, Timeframe } from '../../core/domain';
 import { addDays, endOfMonth, endOfWeek, validateWeights } from '../../core/logic';
 import type { GoalUpdate } from '../queries';
-import { Button, Card, Input, ProgressBar, Text } from '../../ui/components';
+import { Button, Card, Input, ProgressBar, Text, TrashIcon } from '../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 
@@ -49,6 +49,28 @@ const blankRow = (start: string): Row => ({
 });
 // Кол-во ограничено 1–9; всё вне диапазона (старые данные) приводим к 1.
 const clampCount = (n: number): number => (Number.isInteger(n) && n >= 1 && n <= 9 ? n : 1);
+
+// Разложить веса поровну по строкам (сумма = 100).
+function equalizeRows(list: Row[]): Row[] {
+  const n = list.length;
+  if (n === 0) return list;
+  const each = Math.floor((100 / n) * 10) / 10;
+  return list.map((x, i) => ({
+    ...x,
+    weight: String(i === 0 ? Math.round((100 - each * (n - 1)) * 10) / 10 : each),
+  }));
+}
+// Убрать строку и разложить её вес поровну между оставшимися.
+function removeAndRedistribute(list: Row[], key: string): Row[] {
+  const removed = list.find((x) => x.key === key);
+  const rest = list.filter((x) => x.key !== key);
+  if (!removed || rest.length === 0) return rest;
+  const share = (parseFloat(removed.weight) || 0) / rest.length;
+  const w = rest.map((x) => Math.round(((parseFloat(x.weight) || 0) + share) * 10) / 10);
+  const diff = Math.round((100 - w.reduce((a, b) => a + b, 0)) * 10) / 10;
+  w[0] = Math.round((w[0] + diff) * 10) / 10;
+  return rest.map((x, i) => ({ ...x, weight: String(w[i]) }));
+}
 const fromGoal = (g: Goal): Row => ({
   key: g.id,
   id: g.id,
@@ -69,6 +91,7 @@ export function HorizonEditor({
   scope,
   existing,
   defaultStart,
+  addNew,
   saving,
   onSave,
   onCancel,
@@ -77,6 +100,8 @@ export function HorizonEditor({
   existing: Goal[];
   /** start date for newly-added goals (the day you're creating them on, never in the past) */
   defaultStart: string;
+  /** open with a fresh blank goal already prepended, ready to fill */
+  addNew?: boolean;
   saving?: boolean;
   onSave: (payload: SavePayload) => void;
   onCancel: () => void;
@@ -84,31 +109,22 @@ export function HorizonEditor({
   const c = useColors();
   const color = timeframeColor[scope];
 
-  const [rows, setRows] = useState<Row[]>(() =>
-    existing.length ? existing.map(fromGoal) : [blankRow(defaultStart)],
-  );
+  const [rows, setRows] = useState<Row[]>(() => {
+    const base = existing.map(fromGoal);
+    return addNew || base.length === 0 ? equalizeRows([blankRow(defaultStart), ...base]) : base;
+  });
   const [error, setError] = useState<string | null>(null);
 
   // period end for a "one-time" goal: just this day / this week / this month
   const oneTimeEnd = (start: string): string =>
     scope === 'day' ? start : scope === 'week' ? endOfWeek(start) : endOfMonth(start);
 
-  const equalize = (list: Row[]): Row[] => {
-    const n = list.length;
-    if (n === 0) return list;
-    const each = Math.floor((100 / n) * 10) / 10;
-    return list.map((x, i) => ({
-      ...x,
-      weight: String(i === 0 ? Math.round((100 - each * (n - 1)) * 10) / 10 : each),
-    }));
-  };
-
   const update = (key: string, patch: Partial<Row>) =>
     setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
   // adding a goal re-splits weights equally across all goals (user can tweak after)
-  const add = () => setRows((r) => equalize([...r, blankRow(defaultStart)]));
-  const remove = (key: string) => setRows((r) => r.filter((x) => x.key !== key));
-  const distribute = () => setRows((r) => equalize(r));
+  const add = () => setRows((r) => equalizeRows([blankRow(defaultStart), ...r]));
+  const remove = (key: string) => setRows((r) => removeAndRedistribute(r, key));
+  const distribute = () => setRows((r) => equalizeRows(r));
 
   const sum = rows.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0);
   const remaining = Math.round((100 - sum) * 10) / 10;
@@ -184,9 +200,12 @@ export function HorizonEditor({
               <View style={{ flex: 1 }}>
                 <Input value={r.title} onChangeText={(t) => update(r.key, { title: t })} placeholder="Название цели" />
               </View>
-              <Text variant="label" tone="danger" onPress={() => remove(r.key)}>
-                Удалить
-              </Text>
+              <Pressable
+                onPress={() => remove(r.key)}
+                hitSlop={8}
+                style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
+                <TrashIcon size={20} color={c.danger} strokeWidth={1.8} />
+              </Pressable>
             </View>
 
             {/* row 2: кол-во (1–9) + вес % + период */}
