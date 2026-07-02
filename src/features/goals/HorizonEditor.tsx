@@ -172,6 +172,55 @@ export function HorizonEditor({
 
   return (
     <View style={{ gap: spacing.md }}>
+      {/* compact action bar on top */}
+      <View style={{ gap: spacing.sm }}>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <Button title="Сохранить" size="md" onPress={save} loading={saving} />
+          </View>
+          <Button title="Отмена" size="md" variant="secondary" fullWidth={false} onPress={onCancel} />
+        </View>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Pressable
+            onPress={add}
+            style={{
+              flex: 1,
+              height: 38,
+              borderRadius: radius.md,
+              borderWidth: 1.5,
+              borderColor: c.border,
+              borderStyle: 'dashed',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Text variant="label" style={{ color }}>
+              ＋ Ещё цель
+            </Text>
+          </Pressable>
+          {rows.length > 1 ? (
+            <Pressable
+              onPress={distribute}
+              style={{
+                height: 38,
+                paddingHorizontal: spacing.lg,
+                borderRadius: radius.md,
+                backgroundColor: c.surfaceAlt,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Text variant="label" tone="muted">
+                Поровну
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {error ? (
+          <Text variant="caption" tone="danger">
+            {error}
+          </Text>
+        ) : null}
+      </View>
+
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
         <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: color }} />
         <Text variant="heading" style={{ flex: 1 }}>
@@ -262,55 +311,6 @@ export function HorizonEditor({
         </Card>
       ))}
 
-      <View style={{ flexDirection: 'row', gap: spacing.md }}>
-        <Pressable
-          onPress={add}
-          style={{
-            flex: 1,
-            height: 44,
-            borderRadius: radius.md,
-            borderWidth: 1.5,
-            borderColor: c.border,
-            borderStyle: 'dashed',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          <Text variant="label" style={{ color }}>
-            Добавить ещё цель
-          </Text>
-        </Pressable>
-        {rows.length > 1 ? (
-          <Pressable
-            onPress={distribute}
-            style={{
-              height: 44,
-              paddingHorizontal: spacing.lg,
-              borderRadius: radius.md,
-              backgroundColor: c.surfaceAlt,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-            <Text variant="label" tone="muted">
-              Поровну
-            </Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {error ? (
-        <Text variant="caption" tone="danger">
-          {error}
-        </Text>
-      ) : null}
-
-      <View style={{ flexDirection: 'row', gap: spacing.md }}>
-        <View style={{ flex: 1 }}>
-          <Button title="Сохранить" onPress={save} loading={saving} />
-        </View>
-        <View style={{ width: 110 }}>
-          <Button title="Отмена" variant="secondary" onPress={onCancel} />
-        </View>
-      </View>
     </View>
   );
 }
