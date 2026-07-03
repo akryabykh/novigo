@@ -20,7 +20,9 @@ import { isSupabaseConfigured } from '../core/data';
 import { queryClient } from '../core/query';
 import { AuthProvider, useAuth } from '../features/auth/auth-provider';
 import { useProfile } from '../features/queries';
+import { EmptyState } from '../ui/components';
 import { SetupNotice } from '../ui/SetupNotice';
+import { spacing } from '../ui/theme';
 import { ThemeProvider, useColors, useTheme } from '../ui/theme-provider';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -28,7 +30,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 function RootGate() {
   const { session, initializing } = useAuth();
   const uid = session?.user?.id;
-  const { data: profile, isLoading: profileLoading } = useProfile(uid);
+  const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile(uid);
   const segments = useSegments();
   const router = useRouter();
   const c = useColors();
@@ -41,18 +43,36 @@ function RootGate() {
       if (!inAuthGroup) router.replace('/(auth)/login');
       return;
     }
-    if (profileLoading) return;
+    // Don't route while the profile is loading OR errored. A network error must
+    // NOT be treated as "no profile" — that would wrongly bounce the user to
+    // complete-profile. On error we show a retry screen (below) instead.
+    if (profileLoading || profileError) return;
     if (!profile) {
-      // Session but no profile row → the name step must finish. The register /
-      // complete-profile screens handle it themselves; from anywhere else
-      // (e.g. logging in with a profile-less account) force-redirect there,
-      // otherwise the user gets stuck on /login looking like "login is broken".
+      // Session + confirmed no profile row → the name step must finish. The
+      // register / complete-profile screens handle it themselves; from anywhere
+      // else (e.g. logging in with a profile-less account) force-redirect there.
       const onNameStep = segments.includes('complete-profile') || segments.includes('register');
       if (!onNameStep) router.replace('/(auth)/complete-profile');
       return;
     }
     if (inAuthGroup) router.replace('/(app)');
-  }, [session, initializing, profile, profileLoading, segments, router]);
+  }, [session, initializing, profile, profileLoading, profileError, segments, router]);
+
+  // Signed in but the profile request failed (e.g. network) — offer a retry
+  // instead of silently redirecting to complete-profile or hanging.
+  if (session && profileError) {
+    return (
+      <View style={{ flex: 1, backgroundColor: c.bg, justifyContent: 'center', paddingHorizontal: spacing.xl }}>
+        <EmptyState
+          emoji="⚠️"
+          title="Не удалось загрузить профиль"
+          subtitle="Сервер не ответил вовремя. Проверь соединение и попробуй ещё раз."
+          ctaTitle="Повторить"
+          onCta={() => refetchProfile()}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -70,18 +90,21 @@ function ThemedStatusBar() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontsError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
   });
 
+  // Hide the splash once fonts are ready OR failed to load. Never leave the
+  // splash up (or the app blank) forever just because a font request failed —
+  // fall back to the system font and show the app.
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
-  }, [fontsLoaded]);
+    if (fontsLoaded || fontsError) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded, fontsError]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded && !fontsError) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

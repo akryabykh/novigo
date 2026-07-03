@@ -1,6 +1,7 @@
-// zod schemas — the one place input shapes are validated before hitting Supabase.
-// Weights-sum-to-100 (per horizon) is checked via `validateWeights` (core/logic)
-// at the call site, where the UI also needs the live remaining-% feedback.
+// zod schemas — input validation for the auth screens. Goal/task shape is
+// validated inside HorizonEditor (with live remaining-% feedback) and, on the
+// server, by save_horizon + CHECK constraints (migration 0007), so no goal-draft
+// schema lives here anymore.
 import { z } from 'zod';
 
 export const emailSchema = z.string().trim().min(1, 'Введите email').email('Некорректный email');
@@ -11,17 +12,3 @@ export const nameSchema = z.object({
   lastName: z.string().trim().optional().or(z.literal('')),
   middleName: z.string().trim().optional().or(z.literal('')),
 });
-
-export const timeframeSchema = z.enum(['day', 'week', 'month']);
-
-export const goalDraftSchema = z.object({
-  title: z.string().trim().min(1, 'Название цели обязательно'),
-  timeframe: timeframeSchema,
-  target: z.coerce.number().positive('Цель должна быть больше 0'),
-  weight: z.coerce.number().min(0, 'Вес ≥ 0').max(100, 'Вес ≤ 100'),
-});
-export type GoalDraft = z.infer<typeof goalDraftSchema>;
-
-export function firstError(err: z.ZodError): string {
-  return err.issues[0]?.message ?? 'Проверьте введённые данные';
-}

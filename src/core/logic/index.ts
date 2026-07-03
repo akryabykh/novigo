@@ -116,8 +116,50 @@ export function isActiveOn(goal: Goal, date: string): boolean {
   return date >= goal.startDate && (goal.endDate == null || date <= goal.endDate);
 }
 /** Пересекается ли период действия цели с окном [start..end]. */
-function overlaps(goal: Goal, start: string, end: string): boolean {
+export function overlaps(goal: Goal, start: string, end: string): boolean {
   return goal.startDate <= end && (goal.endDate == null || goal.endDate >= start);
+}
+// ---------- ЛАГ РЕДАКТИРОВАНИЯ (24 часа после конца периода) ----------
+/** Сколько времени период остаётся редактируемым после своего конца. */
+export const EDIT_GRACE_MS = 24 * 60 * 60 * 1000;
+
+/** Полночь (локальная, ms) указанной даты. */
+function localMidnightMs(date: string): number {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d).getTime();
+}
+
+/**
+ * Момент (ms), до которого период (день/неделя/месяц) вокруг даты refDate ещё
+ * можно править. Период закрывается в полночь ПОСЛЕ своего последнего дня, дальше
+ * даётся 24 часа лага — затем правки запрещены. Прошедший день/неделя/месяц,
+ * который ты не успел закрыть, через сутки становится read-only.
+ */
+export function periodEditableUntil(tf: Timeframe, refDate: string): number {
+  const { end } = periodRange(tf, refDate);
+  return localMidnightMs(addDays(end, 1)) + EDIT_GRACE_MS;
+}
+
+/** В пределах ли 24-часового лага после конца периода (можно ли ещё править). */
+export function isPeriodEditable(tf: Timeframe, refDate: string, now: number = Date.now()): boolean {
+  return now < periodEditableUntil(tf, refDate);
+}
+
+/**
+ * Можно ли писать прогресс по цели на дату date. Запрещено, если:
+ *   • дата в будущем (date > today);
+ *   • вне периода действия цели (date < startDate или > endDate);
+ *   • период дня/недели/месяца уже закрыт — прошло больше 24 часов после его
+ *     конца (лаг редактирования, см. isPeriodEditable).
+ * Такие дни/недели/месяцы показываются read-only (см. GoalRow/TaskRow).
+ */
+export function canLogOn(
+  goal: Goal,
+  date: string,
+  today: string = todayISO(),
+  now: number = Date.now(),
+): boolean {
+  return date <= today && isActiveOn(goal, date) && isPeriodEditable(goal.timeframe, date, now);
 }
 /** Цели горизонта tf, чей период действия пересекает период даты refDate. */
 export function goalsForScope(goals: Goal[], tf: Timeframe, refDate: string): Goal[] {
@@ -235,6 +277,51 @@ export function validateWeights(
 ): { sum: number; remaining: number; ok: boolean } {
   const sum = goals.reduce((s, g) => s + g.weight, 0);
   return { sum, remaining: 100 - sum, ok: Math.abs(sum - 100) < 1e-6 };
+}
+
+// ============================================================
+// РАСПРЕДЕЛЕНИЕ ВЕСОВ (единый источник для целей и задач).
+// Считаем в ДЕСЯТЫХ долях процента (0..1000), поэтому сумма ВСЕГДА ровно 100.0,
+// включая «неудобные» 3/6/7/9 элементов. Остаток от округления раздаём по
+// крупнейшим долям (метод наибольшего остатка) — детерминированно и без дрейфа.
+// ============================================================
+const TENTHS_TOTAL = 1000; // 100.0% в десятых долях
+
+/** Привести произвольные желаемые доли к десятым, сумма = ровно 100.0. */
+function normalizeTenths(raw: number[]): number[] {
+  const n = raw.length;
+  if (n === 0) return [];
+  const tenths = raw.map((w) => Math.max(0, Math.round(w * 10)));
+  let diff = TENTHS_TOTAL - tenths.reduce((a, b) => a + b, 0);
+  // индексы по убыванию доли — куда добавлять/откуда снимать лишние десятые
+  const order = tenths.map((_, i) => i).sort((a, b) => tenths[b] - tenths[a]);
+  for (let k = 0; diff !== 0; k++) {
+    const i = order[k % n];
+    if (diff > 0) {
+      tenths[i] += 1;
+      diff -= 1;
+    } else if (tenths[i] > 0) {
+      tenths[i] -= 1;
+      diff += 1;
+    }
+  }
+  return tenths.map((t) => t / 10);
+}
+
+/** Разложить 100% поровну на n долей (десятые, сумма = ровно 100). */
+export function equalWeights(n: number): number[] {
+  if (n <= 0) return [];
+  return normalizeTenths(Array.from({ length: n }, () => 100 / n));
+}
+
+/**
+ * Убрали одну сущность, освободился вес `freed` — разложить его поровну между
+ * оставшимися (их текущие веса `remaining`), сохранив ручные пропорции. Сумма = 100.
+ */
+export function redistributeWeights(remaining: number[], freed: number): number[] {
+  if (remaining.length === 0) return [];
+  const share = freed / remaining.length;
+  return normalizeTenths(remaining.map((w) => w + share));
 }
 
 // ============================================================

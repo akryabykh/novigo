@@ -12,7 +12,9 @@ import {
   endOfMonth,
   endOfWeek,
   enumerateDates,
+  isActiveOn,
   levelFromXp,
+  overlaps,
   startOfMonth,
   startOfWeek,
   todayISO,
@@ -61,24 +63,26 @@ export function computeXp(b: Bundle, today: string = todayISO()): number {
   const weekGoals = b.goals.filter((g) => g.timeframe === 'week');
   const monthGoals = b.goals.filter((g) => g.timeframe === 'month');
 
-  // +10 per day a daily goal hits its target
+  // +10 per day a daily goal hits its target — only within the goal's active window
   for (const g of dayGoals) {
-    for (const d of days) if (sumInRange(g.id, b.logs, d, d) >= g.target) xp += XP.PER_GOAL;
+    for (const d of days) if (isActiveOn(g, d) && sumInRange(g.id, b.logs, d, d) >= g.target) xp += XP.PER_GOAL;
   }
 
-  // +10 per calendar week a weekly goal hits its target
+  // +10 per calendar week a weekly goal hits its target (week must overlap the goal's window)
   const weekStarts = distinct(days.map(startOfWeek));
   for (const g of weekGoals) {
     for (const ws of weekStarts) {
-      if (sumInRange(g.id, b.logs, ws, min(endOfWeek(ws), today)) >= g.target) xp += XP.PER_GOAL;
+      const wEnd = endOfWeek(ws);
+      if (overlaps(g, ws, wEnd) && sumInRange(g.id, b.logs, ws, min(wEnd, today)) >= g.target) xp += XP.PER_GOAL;
     }
   }
 
-  // +10 per calendar month a monthly goal hits its target
+  // +10 per calendar month a monthly goal hits its target (month must overlap the goal's window)
   const monthStarts = distinct(days.map(startOfMonth));
   for (const g of monthGoals) {
     for (const ms of monthStarts) {
-      if (sumInRange(g.id, b.logs, ms, min(endOfMonth(ms), today)) >= g.target) xp += XP.PER_GOAL;
+      const mEnd = endOfMonth(ms);
+      if (overlaps(g, ms, mEnd) && sumInRange(g.id, b.logs, ms, min(mEnd, today)) >= g.target) xp += XP.PER_GOAL;
     }
   }
 

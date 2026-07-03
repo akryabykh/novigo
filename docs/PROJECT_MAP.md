@@ -12,11 +12,14 @@ Novigo/
 │   ├── 0003_calendar_goals.sql   # дроп goal_sessions, goals→user_id, ОБНУЛЕНИЕ данных
 │   ├── 0004_goal_date_range.sql  # start_date / end_date + check
 │   ├── 0005_goal_kind.sql        # kind ('goal'|'task') + индекс
-│   └── 0006_goals_forever.sql    # старые «разовые» цели → «навсегда»
+│   ├── 0006_goals_forever.sql    # старые «разовые» цели → «навсегда»
+│   └── 0007_save_horizon_and_integrity.sql  # ⭐ атомарный RPC save_horizon + CHECK + триггер лог-в-периоде
+├── jest.config.js           # babel-jest, node-env, только *.test.ts (без jest-expo)
 ├── docs/                    # ← эти хендовер-доки
 └── src/
     ├── core/                # платформо-независимое ядро
-    │   ├── logic/index.ts   # ⭐ ВСЯ математика: кольца, календарь-хелперы, kind, прогресс, стрики, XP, валидация весов
+    │   ├── logic/index.ts   # ⭐ ВСЯ математика: кольца, календарь, kind, прогресс, стрики, XP,
+    │   │                    #   equalWeights/redistributeWeights, canLogOn/isPeriodEditable (24ч лаг)
     │   ├── domain/index.ts  # типы: Timeframe, DailyLog, Profile, Achievement
     │   ├── data/            # Supabase-слой
     │   │   ├── supabase.ts  # ⭐ клиент (no-op lock!, resolveClientUrl→/supabase-api, fetchWithTimeout 8с)
@@ -34,12 +37,17 @@ Novigo/
     │                        #   icons (Target/List/Gear/Trash/Check/Plus/Flame/ChevronLeft/…)
     ├── features/
     │   ├── auth/auth-provider.tsx  # сессия + signIn/signUp/completeProfile/signOut (без админки)
-    │   ├── queries.ts       # ⭐ хуки: useProfile, useWorkspace, useUpsertLog, useSaveGoals; loadWorkspace
-    │   ├── goals/           # GoalRow (цель +/−), TaskRow (задача-галочка),
-    │   │                    #   HorizonEditor (общий редактор целей/задач), select.ts (goalsForScope)
-    │   └── gamification/    # engine.ts, sync.ts, LevelBar, StreakPill, Heatmap (считается, БЕЗ UI)
+    │   ├── queries.ts       # ⭐ хуки: useProfile, useWorkspace, useSaveGoals (RPC), useUpdateNames;
+    │   │                    #   syncGamificationSafe (геймификация отдельно, не роняет сохранение)
+    │   ├── calendar/        # ⭐ общая обвязка Цели/Задачи (без over-abstraction):
+    │   │                    #   format.ts, useCalendar, useOptimisticLog, log-cache (pure),
+    │   │                    #   CalendarScaffold (day strip + навигатор + кольца + shell)
+    │   ├── goals/           # GoalRow (цель +/−, readOnly), TaskRow (галочка, readOnly, stopPropagation),
+    │   │                    #   task-row-logic.ts (pure), HorizonEditor (общий редактор целей/задач)
+    │   └── gamification/    # engine.ts, sync.ts (считается, БЕЗ UI — «Прогресс» удалён)
+    ├── __tests__/           # jest-спеки: календарь, кольца, веса, лаг, rollback, gamification…
     └── app/                 # Expo Router (роуты)
-        ├── _layout.tsx      # ⭐ провайдеры (query/theme/auth) + ГЕЙТ (session/profile) + шрифты/splash
+        ├── _layout.tsx      # ⭐ провайдеры + ГЕЙТ (loading / not-found / ERROR-с-retry) + шрифты/splash (fallback на ошибке шрифтов)
         ├── (auth)/          # login, register, forgot-password, complete-profile
         └── (app)/
             ├── _layout.tsx  # Stack → (tabs)
@@ -47,6 +55,9 @@ Novigo/
 ```
 ⚠️ **Удалено при редизайне:** `app/admin.tsx`, `(tabs)/progress.tsx`, `(app)/goals/new.tsx`+`edit.tsx`,
 `features/goals/GoalEditForm.tsx`, `core/data/sessions-repo.ts`.
+⚠️ **Удалено в safe-refactor:** `features/goals/select.ts`, `gamification/{LevelBar,StreakPill,Heatmap}.tsx`,
+мёртвые схемы `core/validation` (goalDraft/firstError/timeframeSchema), per-row `create/update/deleteGoal`
+(заменены RPC `save_horizon`), `useUpsertLog`/`useAchievements` (заменены `useOptimisticLog`).
 
 ## Куда смотреть по задаче
 - **Логика колец/прогресса/календаря/весов** → `src/core/logic/index.ts`.

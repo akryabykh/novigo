@@ -1,17 +1,14 @@
 // React Query hooks — the only place screens touch the data layer.
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import {
-  createGoals,
-  deleteGoal,
   getProfile,
   listGoalsByUser,
   listLogsByGoals,
-  listAchievements,
-  updateGoal,
+  saveHorizon,
   updateProfileNames,
-  upsertLog,
-  type NewGoal,
+  type GoalPatch,
+  type SaveHorizonInput,
 } from '../core/data';
 import type { DailyLog, Goal } from '../core/domain';
 import { qk } from '../core/query';
@@ -21,6 +18,9 @@ export interface Workspace {
   goals: Goal[];
   logs: DailyLog[];
 }
+
+/** Re-exported so the editor/screens keep a single name for a goal patch. */
+export type GoalUpdate = GoalPatch;
 
 async function loadWorkspace(uid: string): Promise<Workspace> {
   const goals = await listGoalsByUser(uid);
@@ -45,56 +45,32 @@ export function useWorkspace(uid: string | undefined) {
   });
 }
 
-export function useAchievements(uid: string | undefined) {
-  return useQuery({
-    queryKey: qk.achievements(uid ?? 'anon'),
-    queryFn: () => listAchievements(uid!),
-    enabled: !!uid,
-  });
-}
-
-function useInvalidateAll(uid: string | undefined) {
-  const qc = useQueryClient();
-  return () => {
-    if (!uid) return;
-    qc.invalidateQueries({ queryKey: qk.workspace(uid) });
+/**
+ * Gamification is a SECONDARY, best-effort recompute. It must never turn a
+ * successful primary write (log / goals) into a failure — so it runs detached
+ * with its own try/catch and only invalidates the profile on success.
+ */
+export async function syncGamificationSafe(uid: string, qc: QueryClient): Promise<void> {
+  try {
+    await syncGamification(uid);
     qc.invalidateQueries({ queryKey: qk.profile(uid) });
-    qc.invalidateQueries({ queryKey: qk.achievements(uid) });
-  };
+  } catch (err) {
+    // Non-fatal: the log/goals already saved. Surface only in logs.
+    console.warn('[gamification] sync failed (non-fatal):', err);
+  }
 }
 
-/** Log a value for a goal on a specific date (unique goal_id + date). */
-export function useUpsertLog(uid: string | undefined) {
-  const invalidate = useInvalidateAll(uid);
-  return useMutation({
-    mutationFn: async (input: { goalId: string; date: string; value: number }) => {
-      const log = await upsertLog(input.goalId, input.date, input.value);
-      if (uid) await syncGamification(uid);
-      return log;
-    },
-    onSuccess: invalidate,
-  });
-}
-
-export interface GoalUpdate {
-  id: string;
-  title: string;
-  target: number;
-  weight: number;
-  endDate: string | null;
-}
-
-/** Create / update / delete the user's recurring goals in one shot. */
+/** Create / update / delete the user's goals in one atomic RPC transaction. */
 export function useSaveGoals(uid: string | undefined) {
-  const invalidate = useInvalidateAll(uid);
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { updates: GoalUpdate[]; creates: NewGoal[]; deletes: string[] }) => {
-      for (const u of input.updates) await updateGoal(u.id, u);
-      for (const id of input.deletes) await deleteGoal(id);
-      if (input.creates.length) await createGoals(uid!, input.creates);
-      if (uid) await syncGamification(uid);
+    mutationFn: (input: SaveHorizonInput) => saveHorizon(input),
+    onSuccess: () => {
+      if (!uid) return;
+      qc.invalidateQueries({ queryKey: qk.workspace(uid) });
+      // fire-and-forget; a gamification error does not fail the save
+      void syncGamificationSafe(uid, qc);
     },
-    onSuccess: invalidate,
   });
 }
 
