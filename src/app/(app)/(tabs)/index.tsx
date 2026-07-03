@@ -1,150 +1,74 @@
-import { useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMemo, useState } from 'react';
+import { Pressable, View } from 'react-native';
 
-import type { DailyLog, Goal, Timeframe } from '../../../core/domain';
+import type { Goal } from '../../../core/domain';
 import {
-  addDays,
+  canLogOn,
   computeRings,
-  endOfWeek,
-  enumerateDates,
   goalCurrent,
   goalMaxOnDate,
   goalsForScope,
-  startOfWeek,
-  todayISO,
+  redistributeWeights,
 } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
+import { CalendarScaffold } from '../../../features/calendar/CalendarScaffold';
+import { useCalendar } from '../../../features/calendar/useCalendar';
+import { useOptimisticLog } from '../../../features/calendar/useOptimisticLog';
 import { GoalRow } from '../../../features/goals/GoalRow';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
-import { useSaveGoals, useUpsertLog, useWorkspace, type GoalUpdate } from '../../../features/queries';
-import { Button, EmptyState, GearIcon, PlusIcon, ProgressRing, Skeleton, Text } from '../../../ui/components';
+import { useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
+import { Button, EmptyState, GearIcon, PlusIcon, Skeleton, Text } from '../../../ui/components';
+import { confirmAction } from '../../../ui/confirm';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
-const ORDER: Timeframe[] = ['day', 'week', 'month'];
-const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-const MONTHS_GEN = [
-  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-];
-const MONTHS_NOM = [
-  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
-];
-
-const pad = (n: number) => String(n).padStart(2, '0');
-function addMonths(d: string, n: number): string {
-  const [y, m, day] = d.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1 + n, 1));
-  const y2 = dt.getUTCFullYear();
-  const m2 = dt.getUTCMonth() + 1;
-  const last = new Date(Date.UTC(y2, m2, 0)).getUTCDate();
-  return `${y2}-${pad(m2)}-${pad(Math.min(day, last))}`;
-}
-const dayNum = (d: string) => Number(d.split('-')[2]);
-const monthOf = (d: string) => Number(d.split('-')[1]) - 1;
-
-// Deleting a goal spreads its weight evenly across the remaining goals of the horizon.
+// Redistribute a deleted goal's weight among its siblings, ALL within the same
+// active period (see item 7) — never touches goals of other periods.
 function redistribute(siblings: Goal[], freed: number): GoalUpdate[] {
-  const n = siblings.length;
-  if (n === 0) return [];
-  const share = freed / n;
-  const w = siblings.map((x) => Math.round((x.weight + share) * 10) / 10);
-  const diff = Math.round((100 - w.reduce((a, b) => a + b, 0)) * 10) / 10;
-  w[0] = Math.round((w[0] + diff) * 10) / 10;
-  return siblings.map((x, i) => ({ id: x.id, title: x.title, target: x.target, weight: w[i], endDate: x.endDate }));
-}
-
-function periodTitle(scope: Timeframe, d: string, today: string): string {
-  if (scope === 'day') {
-    if (d === today) return 'Сегодня';
-    if (d === addDays(today, -1)) return 'Вчера';
-    if (d === addDays(today, 1)) return 'Завтра';
-    return `${dayNum(d)} ${MONTHS_GEN[monthOf(d)]}`;
-  }
-  if (scope === 'week') {
-    const s = startOfWeek(d);
-    const e = endOfWeek(d);
-    return monthOf(s) === monthOf(e)
-      ? `${dayNum(s)}–${dayNum(e)} ${MONTHS_GEN[monthOf(e)]}`
-      : `${dayNum(s)} ${MONTHS_GEN[monthOf(s)]} – ${dayNum(e)} ${MONTHS_GEN[monthOf(e)]}`;
-  }
-  const y = Number(d.split('-')[0]);
-  const cy = Number(today.split('-')[0]);
-  return y === cy ? MONTHS_NOM[monthOf(d)] : `${MONTHS_NOM[monthOf(d)]} ${y}`;
+  const weights = redistributeWeights(siblings.map((s) => s.weight), freed);
+  return siblings.map((s, i) => ({ id: s.id, title: s.title, target: s.target, weight: weights[i], endDate: s.endDate }));
 }
 
 export default function HomeScreen() {
   const c = useColors();
-  const today = todayISO();
   const { user } = useAuth();
   const uid = user?.id;
+  const cal = useCalendar();
+  const { today, scope, refDate } = cal;
+
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
-  const upsert = useUpsertLog(uid);
+  const { logValue, saveError, clearSaveError } = useOptimisticLog(uid);
   const saveGoals = useSaveGoals(uid);
 
-  const [scope, setScope] = useState<Timeframe>('day');
-  const [refDate, setRefDate] = useState<string>(today);
-  const [overrides, setOverrides] = useState<Record<string, number>>({});
-  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [editing, setEditing] = useState(false);
   const [addNew, setAddNew] = useState(false);
 
-  // merge optimistic per-(goal,date) overrides over server logs
-  const mergedLogs = useMemo<DailyLog[]>(() => {
-    if (!ws) return [];
-    const ovKeys = new Set(Object.keys(overrides));
-    const base = ws.logs.filter((l) => !ovKeys.has(`${l.goalId}|${l.date}`));
-    const overs = Object.entries(overrides).map(([k, value]) => {
-      const [goalId, date] = k.split('|');
-      return { goalId, date, value };
-    });
-    return [...base, ...overs];
-  }, [ws, overrides]);
-
+  const logs = useMemo(() => ws?.logs ?? [], [ws]);
   // this screen shows only real goals (kind === 'goal'); tasks live on the Tasks tab
   const goals = useMemo(() => (ws ? ws.goals.filter((g) => g.kind !== 'task') : []), [ws]);
   const goalIds = useMemo(() => new Set(goals.map((g) => g.id)), [goals]);
 
-  const rings = useMemo(
-    () => computeRings(goals, mergedLogs, refDate),
-    [goals, mergedLogs, refDate],
-  );
-
-  const weekDays = useMemo(() => enumerateDates(startOfWeek(refDate), endOfWeek(refDate)), [refDate]);
+  const rings = useMemo(() => computeRings(goals, logs, refDate), [goals, logs, refDate]);
   const daysWithProgress = useMemo(() => {
     const s = new Set<string>();
-    for (const l of mergedLogs) if (l.value > 0 && goalIds.has(l.goalId)) s.add(l.date);
+    for (const l of logs) if (l.value > 0 && goalIds.has(l.goalId)) s.add(l.date);
     return s;
-  }, [mergedLogs, goalIds]);
-
-  const stepPeriod = (dir: 1 | -1) => {
-    setRefDate((d) =>
-      scope === 'day' ? addDays(d, dir) : scope === 'week' ? addDays(d, dir * 7) : addMonths(d, dir),
-    );
-  };
-
-  const save = (goalId: string, value: number) => {
-    const key = `${goalId}|${refDate}`;
-    setOverrides((o) => ({ ...o, [key]: value }));
-    clearTimeout(timers.current[key]);
-    timers.current[key] = setTimeout(() => {
-      upsert.mutate({ goalId, date: refDate, value });
-    }, 500);
-  };
+  }, [logs, goalIds]);
 
   const selectedGoals = goalsForScope(goals, scope, refDate);
   // completed goals sink to the bottom (stable within groups)
   const orderedGoals = [...selectedGoals].sort((a, b) => {
-    const da = goalCurrent(a, mergedLogs, refDate) >= a.target ? 1 : 0;
-    const db = goalCurrent(b, mergedLogs, refDate) >= b.target ? 1 : 0;
+    const da = goalCurrent(a, logs, refDate) >= a.target ? 1 : 0;
+    const db = goalCurrent(b, logs, refDate) >= b.target ? 1 : 0;
     return da - db;
   });
+  const writable = (g: Goal) => canLogOn(g, refDate, today);
+  const writableSelected = selectedGoals.filter(writable);
   const hasAnyGoals = goals.length > 0;
 
-  const fillAll = () => selectedGoals.forEach((g) => save(g.id, goalMaxOnDate(g, mergedLogs, refDate)));
-  const clearAll = () => selectedGoals.forEach((g) => save(g.id, 0));
+  // bulk actions only touch goals that are writable on this date (item 2)
+  const fillAll = () => writableSelected.forEach((g) => logValue(g.id, refDate, goalMaxOnDate(g, logs, refDate)));
+  const clearAll = () => writableSelected.forEach((g) => logValue(g.id, refDate, 0));
 
   const closeEditor = () => {
     setEditing(false);
@@ -158,262 +82,134 @@ export default function HomeScreen() {
     setAddNew(false);
     setEditing(true);
   };
-  const submitHorizon = (payload: SavePayload) =>
-    saveGoals.mutate(payload, { onSuccess: closeEditor });
+  const submitHorizon = (payload: SavePayload) => saveGoals.mutate(payload, { onSuccess: closeEditor });
 
-  const deleteGoal = (goal: Goal) => {
-    const siblings = goals.filter((x) => x.timeframe === goal.timeframe && x.id !== goal.id);
+  const deleteGoal = async (goal: Goal) => {
+    if (!(await confirmAction(`Удалить цель «${goal.title}»?`))) return;
+    // redistribute weight ONLY among goals active in the same period (item 7)
+    const siblings = goalsForScope(goals, goal.timeframe, refDate).filter((x) => x.id !== goal.id);
     saveGoals.mutate({ updates: redistribute(siblings, goal.weight), creates: [], deletes: [goal.id] });
   };
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
-      <ScrollView
-        contentContainerStyle={{ alignItems: 'center', paddingBottom: spacing['2xl'] }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={c.accent} />}>
-        <View style={{ width: '100%', maxWidth: 560, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
-          {isError ? (
+    <CalendarScaffold
+      cal={cal}
+      rings={rings}
+      daysWithProgress={daysWithProgress}
+      onSelectScope={(tf) => {
+        cal.setScope(tf);
+        closeEditor();
+      }}
+      isError={isError}
+      refetch={refetch}
+      isRefetching={isRefetching}
+      saveError={saveError ? saveError.message : null}
+      onDismissError={clearSaveError}>
+      {isLoading ? (
+        <View style={{ gap: spacing.md }}>
+          <Skeleton height={96} rounded={radius.lg} />
+          <Skeleton height={96} rounded={radius.lg} />
+        </View>
+      ) : editing ? (
+        <HorizonEditor
+          scope={scope}
+          existing={selectedGoals}
+          defaultStart={refDate > today ? refDate : today}
+          addNew={addNew}
+          onSave={submitHorizon}
+          onCancel={closeEditor}
+          saving={saveGoals.isPending}
+          serverError={saveGoals.isError ? 'Не удалось сохранить. Проверь соединение и попробуй ещё раз.' : null}
+        />
+      ) : (
+        <>
+          {/* goals header + gear + add */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
+            <Text variant="heading" style={{ flex: 1 }}>
+              Цели · {timeframeLabel[scope].toLowerCase()}
+            </Text>
+            {hasAnyGoals ? (
+              <>
+                <Pressable
+                  onPress={openEdit}
+                  hitSlop={6}
+                  style={({ pressed }) => ({
+                    width: 34,
+                    height: 34,
+                    borderRadius: radius.md,
+                    backgroundColor: c.surfaceAlt,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: pressed ? 0.7 : 1,
+                  })}>
+                  <GearIcon size={18} color={c.textMuted} strokeWidth={1.9} />
+                </Pressable>
+                <Pressable
+                  onPress={openAdd}
+                  hitSlop={6}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                    paddingHorizontal: spacing.md,
+                    height: 34,
+                    borderRadius: radius.md,
+                    backgroundColor: c.surfaceAlt,
+                    opacity: pressed ? 0.7 : 1,
+                  })}>
+                  <PlusIcon size={16} color={c.accent} strokeWidth={2.2} />
+                  <Text variant="label" tone="accent">
+                    Добавить
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+
+          {!hasAnyGoals ? (
             <EmptyState
-              emoji="⚠️"
-              title="Не удалось загрузить"
-              subtitle="Сервер не ответил вовремя. Проверь соединение и попробуй ещё раз."
-              ctaTitle="Повторить"
-              onCta={() => refetch()}
+              emoji="🎯"
+              title="Поставь цели"
+              subtitle="Задай цели на день, неделю и месяц — кольца начнут заполняться."
+              ctaTitle="Поставить цели"
+              onCta={openAdd}
             />
           ) : (
-            <>
-              {/* day strip */}
-              <View style={{ flexDirection: 'row', gap: spacing.xs, paddingTop: spacing.md }}>
-                {weekDays.map((d, i) => {
-                  const active = d === refDate;
-                  const isToday = d === today;
-                  const hasProgress = daysWithProgress.has(d);
-                  return (
-                    <Pressable
-                      key={d}
-                      onPress={() => setRefDate(d)}
-                      style={{
-                        flex: 1,
-                        alignItems: 'center',
-                        gap: 3,
-                        paddingVertical: spacing.sm,
-                        borderRadius: radius.md,
-                        backgroundColor: active ? c.accent : 'transparent',
-                        borderWidth: !active && isToday ? 1.5 : 0,
-                        borderColor: c.accent,
-                      }}>
-                      <Text variant="caption" style={{ color: active ? '#fff' : c.textFaint }}>
-                        {WD[i]}
-                      </Text>
-                      <Text
-                        variant="label"
-                        style={{ color: active ? '#fff' : isToday ? c.accent : c.text }}>
-                        {dayNum(d)}
-                      </Text>
-                      <View
-                        style={{
-                          width: 5,
-                          height: 5,
-                          borderRadius: 3,
-                          backgroundColor: hasProgress ? (active ? '#fff' : c.accent) : 'transparent',
-                        }}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </View>
+            <View style={{ gap: spacing.md }}>
+              {orderedGoals.map((g) => (
+                <GoalRow
+                  key={g.id}
+                  goal={g}
+                  logs={logs}
+                  date={refDate}
+                  readOnly={!writable(g)}
+                  onSave={writable(g) ? (id, v) => logValue(id, refDate, v) : undefined}
+                  onDelete={() => deleteGoal(g)}
+                />
+              ))}
 
-              {/* period navigator */}
-              <View style={{ gap: spacing.sm }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <NavArrow label="‹" onPress={() => stepPeriod(-1)} />
-                  {scope === 'day' ? (
-                    <View style={{ flex: 1 }} />
-                  ) : (
-                    <Text variant="heading">{periodTitle(scope, refDate, today)}</Text>
-                  )}
-                  <NavArrow label="›" onPress={() => stepPeriod(1)} />
+              {selectedGoals.length === 0 ? (
+                <Text variant="body" tone="muted">
+                  На «{timeframeLabel[scope].toLowerCase()}» целей нет.
+                </Text>
+              ) : null}
+
+              {/* bulk actions for the selected day (writable goals only) */}
+              {writableSelected.length > 0 ? (
+                <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                  <View style={{ flex: 1 }}>
+                    <Button title="Выполнить всё" variant="secondary" onPress={fillAll} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button title="Очистить" variant="ghost" onPress={clearAll} />
+                  </View>
                 </View>
-                {refDate !== today ? (
-                  <Pressable
-                    onPress={() => setRefDate(today)}
-                    style={{
-                      alignSelf: 'center',
-                      paddingHorizontal: spacing.lg,
-                      height: 32,
-                      borderRadius: radius.md,
-                      backgroundColor: c.surfaceAlt,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                    <Text variant="label" tone="accent">
-                      Сегодня
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-
-              {/* rings selector */}
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                {ORDER.map((tf) => {
-                  const active = tf === scope;
-                  return (
-                    <Pressable
-                      key={tf}
-                      onPress={() => {
-                        setScope(tf);
-                        setEditing(false);
-                      }}
-                      style={{
-                        flex: 1,
-                        alignItems: 'center',
-                        gap: spacing.sm,
-                        paddingVertical: spacing.md,
-                        borderRadius: radius.lg,
-                        borderWidth: 1.5,
-                        borderColor: active ? timeframeColor[tf] : c.border,
-                        backgroundColor: active ? c.surface : 'transparent',
-                      }}>
-                      <ProgressRing progress={rings[tf]} size={84} stroke={8} color={timeframeColor[tf]} />
-                      <Text variant="label" style={{ color: active ? timeframeColor[tf] : c.textMuted }}>
-                        {timeframeLabel[tf]}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              {isLoading ? (
-                <View style={{ gap: spacing.md }}>
-                  <Skeleton height={96} rounded={radius.lg} />
-                  <Skeleton height={96} rounded={radius.lg} />
-                </View>
-              ) : (
-                editing ? (
-                  <HorizonEditor
-                    scope={scope}
-                    existing={selectedGoals}
-                    defaultStart={refDate > today ? refDate : today}
-                    addNew={addNew}
-                    onSave={submitHorizon}
-                    onCancel={closeEditor}
-                    saving={saveGoals.isPending}
-                  />
-                ) : (
-                  <>
-                    {/* goals header + add */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
-                      <Text variant="heading" style={{ flex: 1 }}>
-                        Цели · {timeframeLabel[scope].toLowerCase()}
-                      </Text>
-                      {hasAnyGoals ? (
-                        <>
-                          <Pressable
-                            onPress={openEdit}
-                            hitSlop={6}
-                            style={({ pressed }) => ({
-                              width: 34,
-                              height: 34,
-                              borderRadius: radius.md,
-                              backgroundColor: c.surfaceAlt,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              opacity: pressed ? 0.7 : 1,
-                            })}>
-                            <GearIcon size={18} color={c.textMuted} strokeWidth={1.9} />
-                          </Pressable>
-                          <Pressable
-                            onPress={openAdd}
-                            hitSlop={6}
-                            style={({ pressed }) => ({
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: 4,
-                              paddingHorizontal: spacing.md,
-                              height: 34,
-                              borderRadius: radius.md,
-                              backgroundColor: c.surfaceAlt,
-                              opacity: pressed ? 0.7 : 1,
-                            })}>
-                            <PlusIcon size={16} color={c.accent} strokeWidth={2.2} />
-                            <Text variant="label" tone="accent">
-                              Добавить
-                            </Text>
-                          </Pressable>
-                        </>
-                      ) : null}
-                    </View>
-
-                    {!hasAnyGoals ? (
-                      <EmptyState
-                        emoji="🎯"
-                        title="Поставь цели"
-                        subtitle="Задай цели на день, неделю и месяц — кольца начнут заполняться."
-                        ctaTitle="Поставить цели"
-                        onCta={openAdd}
-                      />
-                    ) : (
-                      <View style={{ gap: spacing.md }}>
-                        {orderedGoals.map((g) => (
-                          <GoalRow
-                            key={g.id}
-                            goal={g}
-                            logs={mergedLogs}
-                            date={refDate}
-                            onSave={save}
-                            onDelete={() => deleteGoal(g)}
-                          />
-                        ))}
-
-                        {selectedGoals.length === 0 ? (
-                          <Text variant="body" tone="muted">
-                            На «{timeframeLabel[scope].toLowerCase()}» целей нет.
-                          </Text>
-                        ) : null}
-
-                        {/* bulk actions for the selected day */}
-                        {selectedGoals.length > 0 ? (
-                          <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                            <View style={{ flex: 1 }}>
-                              <Button title="Выполнить всё" variant="secondary" onPress={fillAll} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Button title="Очистить" variant="ghost" onPress={clearAll} />
-                            </View>
-                          </View>
-                        ) : null}
-                      </View>
-                    )}
-                  </>
-                )
-              )}
-            </>
+              ) : null}
+            </View>
           )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function NavArrow({ label, onPress }: { label: string; onPress: () => void }) {
-  const c = useColors();
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={8}
-      style={({ pressed }) => ({
-        width: 40,
-        height: 40,
-        borderRadius: radius.md,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: c.surfaceAlt,
-        opacity: pressed ? 0.7 : 1,
-      })}>
-      <Text style={{ fontSize: 22, color: c.text }}>{label}</Text>
-    </Pressable>
+        </>
+      )}
+    </CalendarScaffold>
   );
 }

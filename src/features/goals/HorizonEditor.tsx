@@ -6,7 +6,7 @@ import { Pressable, View } from 'react-native';
 
 import type { NewGoal } from '../../core/data';
 import type { Goal, GoalKind, Timeframe } from '../../core/domain';
-import { addDays, endOfMonth, endOfWeek, validateWeights } from '../../core/logic';
+import { addDays, endOfMonth, endOfWeek, equalWeights, redistributeWeights, validateWeights } from '../../core/logic';
 import type { GoalUpdate } from '../queries';
 import { Button, Card, Input, ProgressBar, Text, TrashIcon } from '../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
@@ -50,25 +50,18 @@ const blankRow = (start: string): Row => ({
 // Кол-во ограничено 1–9; всё вне диапазона (старые данные) приводим к 1.
 const clampCount = (n: number): number => (Number.isInteger(n) && n >= 1 && n <= 9 ? n : 1);
 
-// Разложить веса поровну по строкам (сумма = 100).
+// Разложить веса поровну по строкам (единый helper, сумма = ровно 100).
 function equalizeRows(list: Row[]): Row[] {
-  const n = list.length;
-  if (n === 0) return list;
-  const each = Math.floor((100 / n) * 10) / 10;
-  return list.map((x, i) => ({
-    ...x,
-    weight: String(i === 0 ? Math.round((100 - each * (n - 1)) * 10) / 10 : each),
-  }));
+  if (list.length === 0) return list;
+  const w = equalWeights(list.length);
+  return list.map((x, i) => ({ ...x, weight: String(w[i]) }));
 }
-// Убрать строку и разложить её вес поровну между оставшимися.
+// Убрать строку и разложить её вес между оставшимися (сумма = ровно 100).
 function removeAndRedistribute(list: Row[], key: string): Row[] {
   const removed = list.find((x) => x.key === key);
   const rest = list.filter((x) => x.key !== key);
   if (!removed || rest.length === 0) return rest;
-  const share = (parseFloat(removed.weight) || 0) / rest.length;
-  const w = rest.map((x) => Math.round(((parseFloat(x.weight) || 0) + share) * 10) / 10);
-  const diff = Math.round((100 - w.reduce((a, b) => a + b, 0)) * 10) / 10;
-  w[0] = Math.round((w[0] + diff) * 10) / 10;
+  const w = redistributeWeights(rest.map((x) => parseFloat(x.weight) || 0), parseFloat(removed.weight) || 0);
   return rest.map((x, i) => ({ ...x, weight: String(w[i]) }));
 }
 const fromGoal = (g: Goal): Row => ({
@@ -94,6 +87,7 @@ export function HorizonEditor({
   defaultStart,
   addNew,
   saving,
+  serverError,
   onSave,
   onCancel,
 }: {
@@ -106,6 +100,8 @@ export function HorizonEditor({
   /** open with a fresh blank goal already prepended, ready to fill */
   addNew?: boolean;
   saving?: boolean;
+  /** message from a failed save mutation (kept open so the user can retry) */
+  serverError?: string | null;
   onSave: (payload: SavePayload) => void;
   onCancel: () => void;
 }) {
@@ -154,19 +150,19 @@ export function HorizonEditor({
     if (!isTask && !validateWeights(parsed).ok)
       return setError(`Сумма весов «${timeframeLabel[scope].toLowerCase()}» должна быть 100% (сейчас ${Math.round(sum)}%)`);
 
-    // tasks: count is always 1 and weights split equally
-    const eachW = Math.round((100 / parsed.length) * 10) / 10;
+    // tasks: count is always 1 and weights split equally (single helper, sum = 100)
+    const taskWeights = equalWeights(parsed.length);
     const updates: GoalUpdate[] = [];
     const creates: NewGoal[] = [];
-    for (const p of parsed) {
+    parsed.forEach((p, i) => {
       const target = isTask ? 1 : p.target;
-      const weight = isTask ? eachW : p.weight;
+      const weight = isTask ? taskWeights[i] : p.weight;
       // tasks are always bound to their period (this day / week / month)
       const endDate = isTask ? oneTimeEnd(p.row.startDate) : p.row.endDate;
       if (p.row.id) updates.push({ id: p.row.id, title: p.title, target, weight, endDate });
       else
         creates.push({ kind, title: p.title, timeframe: scope, target, weight, startDate: p.row.startDate, endDate });
-    }
+    });
     const keptIds = new Set(rows.map((r) => r.id).filter(Boolean) as string[]);
     const deletes = existing.map((g) => g.id).filter((id) => !keptIds.has(id));
 
@@ -217,9 +213,9 @@ export function HorizonEditor({
             </Pressable>
           ) : null}
         </View>
-        {error ? (
+        {error || serverError ? (
           <Text variant="caption" tone="danger">
-            {error}
+            {error ?? serverError}
           </Text>
         ) : null}
       </View>
