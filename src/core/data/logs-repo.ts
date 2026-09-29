@@ -19,3 +19,13 @@ export async function upsertLog(goalId: string, date: string, value: number): Pr
   if (error) throw error;
   return toDailyLog(data as DailyLogRow);
 }
+
+/** A task's period reset is a single SQL statement, so all dates change together. */
+export async function upsertLogs(changes: DailyLog[]): Promise<void> {
+  if (!changes.length) return;
+  const { error } = await supabase.from('daily_logs').upsert(
+    changes.map(({ goalId, date, value }) => ({ goal_id: goalId, date, value })),
+    { onConflict: 'goal_id,date' },
+  );
+  if (error) throw error;
+}

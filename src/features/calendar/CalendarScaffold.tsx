@@ -20,6 +20,7 @@ export function CalendarScaffold({
   rings,
   daysWithProgress,
   onSelectScope,
+  navigationDisabled = false,
   isError,
   refetch,
   isRefetching,
@@ -31,6 +32,7 @@ export function CalendarScaffold({
   rings: Rings;
   daysWithProgress: Set<string>;
   onSelectScope: (tf: Timeframe) => void;
+  navigationDisabled?: boolean;
   isError: boolean;
   refetch: () => void;
   isRefetching: boolean;
@@ -67,6 +69,7 @@ export function CalendarScaffold({
                   const hasProgress = daysWithProgress.has(d);
                   return (
                     <Pressable
+                      disabled={navigationDisabled}
                       key={d}
                       onPress={() => setRefDate(d)}
                       style={{
@@ -101,16 +104,17 @@ export function CalendarScaffold({
               {/* period navigator */}
               <View style={{ gap: spacing.sm }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <NavArrow label="‹" onPress={() => cal.stepPeriod(-1)} />
+                  <NavArrow disabled={navigationDisabled} label="‹" onPress={() => cal.stepPeriod(-1)} />
                   {scope === 'day' ? (
                     <View style={{ flex: 1 }} />
                   ) : (
                     <Text variant="heading">{periodTitle(scope, refDate, today)}</Text>
                   )}
-                  <NavArrow label="›" onPress={() => cal.stepPeriod(1)} />
+                  <NavArrow disabled={navigationDisabled} label="›" onPress={() => cal.stepPeriod(1)} />
                 </View>
                 {refDate !== today ? (
                   <Pressable
+                    disabled={navigationDisabled}
                     onPress={cal.goToday}
                     style={{
                       alignSelf: 'center',
@@ -134,6 +138,7 @@ export function CalendarScaffold({
                   const active = tf === scope;
                   return (
                     <Pressable
+                      disabled={navigationDisabled}
                       key={tf}
                       onPress={() => onSelectScope(tf)}
                       style={{
@@ -166,7 +171,7 @@ export function CalendarScaffold({
                     backgroundColor: c.surfaceAlt,
                   }}>
                   <Text variant="caption" tone="danger">
-                    Не удалось сохранить — изменения откатились. Проверь соединение и повтори. Нажми, чтобы скрыть.
+                    {saveError}
                   </Text>
                 </Pressable>
               ) : null}
@@ -180,10 +185,11 @@ export function CalendarScaffold({
   );
 }
 
-function NavArrow({ label, onPress }: { label: string; onPress: () => void }) {
+function NavArrow({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   const c = useColors();
   return (
     <Pressable
+      disabled={disabled}
       onPress={onPress}
       hitSlop={8}
       style={({ pressed }) => ({

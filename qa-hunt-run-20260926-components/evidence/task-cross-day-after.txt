@@ -1,0 +1,24 @@
+
+> novigo@1.0.0 test
+> jest --runInBand src/__tests__/task-row-logic.test.ts
+
+PASS src/__tests__/task-row-logic.test.ts
+  task toggle value
+    ✓ clears a weekly task completed on a different day (4 ms)
+    ✓ unchecked → fills the remainder to done
+    ✓ checked → clears to 0 (1 ms)
+  task period changes
+    ✓ day toggle clears only the selected period and restores completion (2 ms)
+    ✓ week toggle clears only the selected period and restores completion (3 ms)
+    ✓ month toggle clears only the selected period and restores completion (1 ms)
+    ✓ explicit uncheck clears every positive in-window entry but leaves inactive dates
+    ✓ explicit completion is idempotent and replaces the selected day with its maximum (1 ms)
+  delete does not toggle the task
+    ✓ stops event propagation and calls onDelete only (1 ms)
+    ✓ is a no-op when no onDelete is provided (still stops propagation) (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        1.269 s, estimated 2 s
+Ran all test suites matching /src\/__tests__\/task-row-logic.test.ts/i.

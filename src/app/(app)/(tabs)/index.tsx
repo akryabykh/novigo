@@ -75,10 +75,14 @@ export default function HomeScreen() {
     setAddNew(false);
   };
   const openAdd = () => {
+    if (saveGoals.isPending) return;
+    saveGoals.reset();
     setAddNew(true);
     setEditing(true);
   };
   const openEdit = () => {
+    if (saveGoals.isPending) return;
+    saveGoals.reset();
     setAddNew(false);
     setEditing(true);
   };
@@ -94,6 +98,7 @@ export default function HomeScreen() {
   return (
     <CalendarScaffold
       cal={cal}
+      navigationDisabled={editing || saveGoals.isPending}
       rings={rings}
       daysWithProgress={daysWithProgress}
       onSelectScope={(tf) => {
@@ -103,8 +108,8 @@ export default function HomeScreen() {
       isError={isError}
       refetch={refetch}
       isRefetching={isRefetching}
-      saveError={saveError ? saveError.message : null}
-      onDismissError={clearSaveError}>
+      saveError={saveGoals.isError && !editing ? 'Не удалось сохранить изменения. Проверь соединение и повтори.' : saveError ? 'Не удалось сохранить отметку. Проверь соединение и повтори.' : null}
+      onDismissError={() => { clearSaveError(); saveGoals.reset(); }}>
       {isLoading ? (
         <View style={{ gap: spacing.md }}>
           <Skeleton height={96} rounded={radius.lg} />
@@ -112,6 +117,7 @@ export default function HomeScreen() {
         </View>
       ) : editing ? (
         <HorizonEditor
+          key={`${scope}:${refDate}`}
           scope={scope}
           existing={selectedGoals}
           defaultStart={refDate > today ? refDate : today}

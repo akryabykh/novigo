@@ -1,11 +1,9 @@
 /** @type {import('jest').Config} */
-// Pure-logic unit tests run on plain Node with a minimal TS transform — no
-// jest-expo / react-native runtime needed (nothing under test imports RN at
-// runtime). Component behaviour that would need the RN renderer is factored into
-// pure helpers (e.g. task-row-logic) and tested directly.
+// Unit tests and React component/hook contracts run on Node. Component suites
+// mock native hosts/animation drivers; browser and device checks remain separate.
 module.exports = {
   testEnvironment: 'node',
-  testMatch: ['**/*.test.ts'],
+  testMatch: ['**/*.test.ts', '**/*.test.tsx'],
   testPathIgnorePatterns: ['/node_modules/', '/dist/', '/.expo/'],
   transform: {
     '^.+\\.[jt]sx?$': [
@@ -13,7 +11,7 @@ module.exports = {
       {
         configFile: false,
         babelrc: false,
-        presets: [['babel-preset-expo', { jsxImportSource: 'nativewind' }]],
+        presets: [['babel-preset-expo', { jsxImportSource: 'react' }]],
       },
     ],
   },

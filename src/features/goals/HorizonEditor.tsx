@@ -12,6 +12,8 @@ import { Button, Card, Input, ProgressBar, Text, TrashIcon } from '../../ui/comp
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 
+import { isRealDate, parseWeight } from './editor-validation';
+
 interface Row {
   key: string;
   id?: string;
@@ -61,7 +63,7 @@ function removeAndRedistribute(list: Row[], key: string): Row[] {
   const removed = list.find((x) => x.key === key);
   const rest = list.filter((x) => x.key !== key);
   if (!removed || rest.length === 0) return rest;
-  const w = redistributeWeights(rest.map((x) => parseFloat(x.weight) || 0), parseFloat(removed.weight) || 0);
+  const w = redistributeWeights(rest.map((x) => parseWeight(x.weight) || 0), parseWeight(removed.weight) || 0);
   return rest.map((x, i) => ({ ...x, weight: String(w[i]) }));
 }
 const fromGoal = (g: Goal): Row => ({
@@ -113,6 +115,7 @@ export function HorizonEditor({
     const base = existing.map(fromGoal);
     return addNew || base.length === 0 ? equalizeRows([blankRow(defaultStart), ...base]) : base;
   });
+  const [originalIds] = useState(() => existing.map((g) => g.id));
   const [error, setError] = useState<string | null>(null);
 
   // period end for a "one-time" goal: just this day / this week / this month
@@ -126,24 +129,27 @@ export function HorizonEditor({
   const remove = (key: string) => setRows((r) => removeAndRedistribute(r, key));
   const distribute = () => setRows((r) => equalizeRows(r));
 
-  const sum = rows.reduce((s, r) => s + (parseFloat(r.weight) || 0), 0);
+  const sum = rows.reduce((s, r) => s + (parseWeight(r.weight) || 0), 0);
   const remaining = Math.round((100 - sum) * 10) / 10;
 
   const save = () => {
+    if (saving) return;
     setError(null);
     if (rows.length === 0) return setError('Добавь хотя бы одну цель');
     const parsed = rows.map((r) => ({
       row: r,
       title: r.title.trim(),
       target: parseFloat(r.target),
-      weight: parseFloat(r.weight) || 0,
+      weight: parseWeight(r.weight),
     }));
     for (const p of parsed) {
       if (!p.title) return setError(isTask ? 'У каждой задачи должно быть название' : 'У каждой цели должно быть название');
       if (!isTask && (!Number.isFinite(p.target) || p.target <= 0))
         return setError(`Кол-во (> 0) для «${p.title || '—'}»`);
+      if (!isTask && (!Number.isFinite(p.weight) || p.weight < 0 || p.weight > 100))
+        return setError('Вес должен быть числом от 0 до 100');
       if (p.row.endDate) {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(p.row.endDate)) return setError('Дата в формате ГГГГ-ММ-ДД');
+        if (!isRealDate(p.row.endDate)) return setError('Укажи существующую дату в формате ГГГГ-ММ-ДД');
         if (p.row.endDate < p.row.startDate) return setError('Дата окончания не раньше начала');
       }
     }
@@ -164,7 +170,7 @@ export function HorizonEditor({
         creates.push({ kind, title: p.title, timeframe: scope, target, weight, startDate: p.row.startDate, endDate });
     });
     const keptIds = new Set(rows.map((r) => r.id).filter(Boolean) as string[]);
-    const deletes = existing.map((g) => g.id).filter((id) => !keptIds.has(id));
+    const deletes = originalIds.filter((id) => !keptIds.has(id));
 
     onSave({ updates, creates, deletes });
   };
@@ -177,10 +183,11 @@ export function HorizonEditor({
           <View style={{ flex: 1 }}>
             <Button title="Сохранить" size="md" onPress={save} loading={saving} />
           </View>
-          <Button title="Отмена" size="md" variant="secondary" fullWidth={false} onPress={onCancel} />
+          <Button title="Отмена" size="md" variant="secondary" fullWidth={false} onPress={onCancel} disabled={saving} />
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Pressable
+            disabled={saving}
             onPress={add}
             style={{
               flex: 1,
@@ -198,6 +205,7 @@ export function HorizonEditor({
           </Pressable>
           {!isTask && rows.length > 1 ? (
             <Pressable
+              disabled={saving}
               onPress={distribute}
               style={{
                 height: 38,
@@ -252,12 +260,14 @@ export function HorizonEditor({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <View style={{ flex: 1 }}>
                 <Input
+                  editable={!saving}
                   value={r.title}
                   onChangeText={(t) => update(r.key, { title: t })}
                   placeholder={isTask ? 'Название задачи' : 'Название цели'}
                 />
               </View>
               <Pressable
+                disabled={saving}
                 onPress={() => remove(r.key)}
                 hitSlop={8}
                 style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
@@ -269,20 +279,23 @@ export function HorizonEditor({
             {!isTask ? (
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: spacing.sm }}>
                 <NumberPicker
+                  disabled={saving}
                   value={parseInt(r.target, 10) || 1}
                   color={color}
                   onChange={(n) => update(r.key, { target: String(n) })}
                 />
                 <View style={{ width: 92 }}>
                   <Input
+                    editable={!saving}
                     value={r.weight}
                     onChangeText={(t) => update(r.key, { weight: t })}
                     keyboardType="numeric"
                     placeholder="вес %"
                   />
                 </View>
-                <Chip label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
+                <Chip disabled={saving} label="Навсегда" active={!r.endDate} color={color} onPress={() => update(r.key, { endDate: null })} />
                 <Chip
+                  disabled={saving}
                   label="До даты"
                   active={!!r.endDate}
                   color={color}
@@ -294,15 +307,16 @@ export function HorizonEditor({
             {!isTask && r.endDate ? (
               <View style={{ gap: spacing.sm }}>
                 <Input
+                  editable={!saving}
                   value={r.endDate}
                   onChangeText={(t) => update(r.key, { endDate: t })}
                   placeholder="2026-12-31"
                   autoCapitalize="none"
                 />
                 <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                  <Chip label="+1 нед" color={color} onPress={() => update(r.key, { endDate: addDays(r.startDate, 7) })} />
-                  <Chip label="+1 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 1) })} />
-                  <Chip label="+3 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 3) })} />
+                  <Chip disabled={saving} label="+1 нед" color={color} onPress={() => update(r.key, { endDate: addDays(r.startDate, 7) })} />
+                  <Chip disabled={saving} label="+1 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 1) })} />
+                  <Chip disabled={saving} label="+3 мес" color={color} onPress={() => update(r.key, { endDate: addMonths(r.startDate, 3) })} />
                 </View>
               </View>
             ) : null}
@@ -318,8 +332,10 @@ function NumberPicker({
   value,
   color,
   onChange,
+  disabled,
 }: {
   value: number;
+  disabled?: boolean;
   color: string;
   onChange: (n: number) => void;
 }) {
@@ -330,6 +346,7 @@ function NumberPicker({
   return (
     <View>
       <Pressable
+        disabled={disabled}
         onPress={() => setOpen((o) => !o)}
         style={{
           height: 44,
@@ -368,6 +385,7 @@ function NumberPicker({
             return (
               <Pressable
                 key={n}
+                disabled={disabled}
                 onPress={() => {
                   onChange(n);
                   setOpen(false);
@@ -393,11 +411,13 @@ function NumberPicker({
 
 function Chip({
   label,
+  disabled,
   active,
   color,
   onPress,
 }: {
   label: string;
+  disabled?: boolean;
   active?: boolean;
   color: string;
   onPress: () => void;
@@ -405,6 +425,7 @@ function Chip({
   const c = useColors();
   return (
     <Pressable
+      disabled={disabled}
       onPress={onPress}
       style={{
         paddingHorizontal: spacing.md,

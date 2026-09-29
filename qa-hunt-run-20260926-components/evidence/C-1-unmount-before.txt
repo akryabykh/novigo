@@ -1,0 +1,52 @@
+  console.error
+    react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+
+      17 |   function Harness() { api = useOptimisticLog('u1'); return null; }
+      18 |   let root!: ReactTestRenderer;
+    > 19 |   await act(async () => { root = create(<QueryClientProvider client={qc}><Harness /></QueryClientProvider>); });
+         |                                        ^
+      20 |   await act(async () => { await api.logValue('g', '2026-09-26', 1); });
+      21 |   await act(async () => { root.unmount(); });
+      22 |   await new Promise((resolve) => setTimeout(resolve, 550));
+
+      at Object.<anonymous>.process.env.NODE_ENV.exports.create (node_modules/react-test-renderer/cjs/react-test-renderer.development.js:17337:17)
+      at src/__tests__/optimistic-hook.test.tsx:19:40
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12
+      at Object.<anonymous>.process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:814:22)
+      at Object.<anonymous> (src/__tests__/optimistic-hook.test.tsx:19:12)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+      at node_modules/@babel/runtime/helpers/asyncToGenerator.js:22:7
+      at Object.<anonymous> (node_modules/@babel/runtime/helpers/asyncToGenerator.js:14:12)
+
+FAIL src/__tests__/optimistic-hook.test.tsx
+  ✕ a progress edit survives component unmount (638 ms)
+
+  ● a progress edit survives component unmount
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: "g", "2026-09-26", 1
+
+    Number of calls: 0
+
+      21 |   await act(async () => { root.unmount(); });
+      22 |   await new Promise((resolve) => setTimeout(resolve, 550));
+    > 23 |   expect(upsertLog).toHaveBeenCalledWith('g', '2026-09-26', 1);
+         |                     ^
+      24 |   qc.clear();
+      25 | });
+      26 |
+
+      at Object.toHaveBeenCalledWith (src/__tests__/optimistic-hook.test.tsx:23:21)
+      at asyncGeneratorStep (node_modules/@babel/runtime/helpers/asyncToGenerator.js:3:17)
+      at _next (node_modules/@babel/runtime/helpers/asyncToGenerator.js:17:9)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        1.932 s
+Ran all test suites matching /src\/__tests__\/optimistic-hook.test.tsx/i.
