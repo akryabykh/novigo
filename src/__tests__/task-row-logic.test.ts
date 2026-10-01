@@ -1,9 +1,27 @@
 import { describe, expect, jest, test } from '@jest/globals';
-import { handleDeletePress, isTaskDone, taskLogChanges, taskToggleValue } from '../features/goals/task-row-logic';
+import { handleDeletePress, isTaskDone, openTaskCounts, taskLogChanges, taskToggleValue } from '../features/goals/task-row-logic';
 import { log, mkGoal } from './fixtures';
 import { applyLog } from '../features/calendar/log-cache';
 
 const task = mkGoal({ id: 't', kind: 'task', timeframe: 'day', target: 1 });
+
+describe('unfinished task counts', () => {
+  test('includes zero and counts beyond nine without capping', () => {
+    const weeklyTasks = Array.from({ length: 12 }, (_, i) => mkGoal({ id: `w${i}`, kind: 'task', timeframe: 'week' }));
+    expect(openTaskCounts(weeklyTasks, [], '2024-06-12')).toEqual({ day: 0, week: 12, month: 0 });
+  });
+
+  test('follows the selected period and excludes completed tasks', () => {
+    const daily = mkGoal({ id: 'd', kind: 'task', timeframe: 'day' });
+    const weekly = mkGoal({ id: 'w', kind: 'task', timeframe: 'week' });
+    const monthly = mkGoal({ id: 'm', kind: 'task', timeframe: 'month' });
+    const tasks = [daily, weekly, monthly];
+    const logs = [log('d', '2024-06-12', 1), log('w', '2024-06-10', 1), log('m', '2024-06-12', 1)];
+    expect(openTaskCounts(tasks, logs, '2024-06-12')).toEqual({ day: 0, week: 0, month: 0 });
+    expect(openTaskCounts(tasks, logs, '2024-06-13')).toEqual({ day: 1, week: 0, month: 0 });
+    expect(openTaskCounts(tasks, logs, '2024-06-17')).toEqual({ day: 1, week: 1, month: 0 });
+  });
+});
 
 describe('task toggle value', () => {
   test('clears a weekly task completed on a different day', () => {
