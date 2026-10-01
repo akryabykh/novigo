@@ -35,6 +35,8 @@ export type GoalUpdate = GoalPatch;
 export function useProfile(uid: string | undefined) {
   return useQuery({
     queryKey: qk.profile(uid ?? 'anon'),
+    // Web can read its saved profile without a connection.
+    networkMode: Platform.OS === 'web' ? 'always' : 'online',
     queryFn: async () => {
       const cached = await readOffline(uid!);
       if (typeof navigator !== 'undefined' && navigator.onLine === false && cached.profile) return cached.profile;
@@ -55,6 +57,8 @@ export function useWorkspace(uid: string | undefined) {
   const qc = useQueryClient();
   return useQuery({
     queryKey: qk.workspace(uid ?? 'anon'),
+    // Run the local snapshot lookup even when the browser reports offline.
+    networkMode: Platform.OS === 'web' ? 'always' : 'online',
     queryFn: async () => overlayPendingLogs(qc, uid!, Platform.OS === 'web'
       ? await loadOfflineWorkspace(uid!, qc) : await loadNativeWorkspace(uid!)),
     enabled: !!uid,
@@ -80,6 +84,9 @@ export async function syncGamificationSafe(uid: string, qc: QueryClient): Promis
 export function useSaveGoals(uid: string | undefined, kind: GoalKind, timeframe: Timeframe, refDate: string) {
   const qc = useQueryClient();
   return useMutation({
+    // The web mutation writes to the local queue first; TanStack's default
+    // online mode would pause it before mutationFn runs and leave Save spinning.
+    networkMode: Platform.OS === 'web' ? 'always' : 'online',
     mutationFn: (input: SaveHorizonInput) => Platform.OS === 'web'
       ? queueHorizon(uid!, kind, timeframe, refDate, input, qc) : saveHorizon(input),
     onSuccess: () => {
