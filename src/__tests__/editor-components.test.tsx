@@ -6,7 +6,8 @@ import { HorizonEditor } from '../features/goals/HorizonEditor';
 import { isRealDate, parseWeight } from '../features/goals/editor-validation';
 import type { Goal } from '../core/domain';
 
-jest.mock('react-native', () => ({ View: 'View', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl' }));
+jest.mock('react-native', () => ({ View: 'View', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
+  PanResponder: { create: (handlers: object) => ({ panHandlers: handlers }) } }));
 jest.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
 jest.mock('../ui/theme-provider', () => ({ useColors: () => ({}) }));
 jest.mock('../ui/components', () => ({ Button: 'Button', Card: 'Card', Input: 'Input', ProgressBar: 'ProgressBar', Text: 'Text', TrashIcon: 'TrashIcon', ProgressRing: 'ProgressRing', EmptyState: 'EmptyState' }));
@@ -44,6 +45,29 @@ describe('editor safety', () => {
     expect(actions.length).toBe(8);
     for (const button of actions.slice(0, -1)) expect(button.props.disabled).toBe(true);
     expect(tree.root.findAllByType('Text').some((node: any) => node.props.children === 'Deletion failed')).toBe(true);
+    await act(async () => { tree.unmount(); });
+  });
+  test('horizontal swipes step one period without capturing vertical scrolling or disabled navigation', async () => {
+    const stepPeriod = jest.fn();
+    const noop = jest.fn();
+    const cal = { today: '2026-09-26', refDate: '2026-09-26', scope: 'week' as const, setScope: noop, setRefDate: noop,
+      weekDays: ['2026-09-26'], stepPeriod, goToday: noop };
+    const props = { cal, rings: { day: 0, week: 0, month: 0 }, daysWithProgress: new Set<string>(),
+      onSelectScope: noop, isError: false, refetch: noop, isRefetching: false };
+    let tree: any;
+    await act(async () => { tree = create(<CalendarScaffold {...props}><></></CalendarScaffold>); });
+    const handlers = tree.root.findAllByType('View')[0].props;
+    expect(handlers.onMoveShouldSetPanResponderCapture(null, { dx: 10, dy: 0 })).toBe(false);
+    expect(handlers.onMoveShouldSetPanResponderCapture(null, { dx: 70, dy: 100 })).toBe(false);
+    expect(handlers.onMoveShouldSetPanResponderCapture(null, { dx: -70, dy: 5 })).toBe(true);
+    await act(async () => { handlers.onPanResponderRelease(null, { dx: -70, dy: 5 }); });
+    await act(async () => { handlers.onPanResponderRelease(null, { dx: 75, dy: 5 }); });
+    expect(stepPeriod.mock.calls).toEqual([[1], [-1]]);
+    await act(async () => { tree.update(<CalendarScaffold {...props} navigationDisabled><></></CalendarScaffold>); });
+    const disabledHandlers = tree.root.findAllByType('View')[0].props;
+    expect(disabledHandlers.onMoveShouldSetPanResponderCapture(null, { dx: -70, dy: 5 })).toBe(false);
+    await act(async () => { disabledHandlers.onPanResponderRelease(null, { dx: -70, dy: 5 }); });
+    expect(stepPeriod).toHaveBeenCalledTimes(2);
     await act(async () => { tree.unmount(); });
   });
   test('rejects nonexistent dates, accepts leap dates and decimal comma', () => {
