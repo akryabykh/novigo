@@ -97,7 +97,7 @@ describe('ordered account progress writer', () => {
     const done = s.writer.enqueue(changes);
     expect(s.logs()).toEqual([]);
     await tick();
-    expect(s.write).toHaveBeenCalledWith(changes);
+    expect(s.write).toHaveBeenCalledWith(changes.map((change) => ({ ...change, expectedValue: 1 })));
     s.requests[0].reject(new Error('offline')); await done;
     expect(s.logs()).toEqual([v(1), old]);
     s.qc.clear();

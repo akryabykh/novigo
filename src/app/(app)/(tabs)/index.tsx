@@ -38,7 +38,7 @@ export default function HomeScreen() {
 
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
   const { logValue, saveError, clearSaveError } = useOptimisticLog(uid);
-  const saveGoals = useSaveGoals(uid);
+  const saveGoals = useSaveGoals(uid, 'goal', scope, refDate);
 
   const [editing, setEditing] = useState(false);
   const [addNew, setAddNew] = useState(false);

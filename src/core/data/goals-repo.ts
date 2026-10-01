@@ -23,6 +23,7 @@ export async function listGoalsByUser(userId: string): Promise<Goal[]> {
 }
 
 export interface NewGoal {
+  id?: string;
   kind: Goal['kind'];
   title: string;
   timeframe: Timeframe;

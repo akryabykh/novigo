@@ -38,7 +38,7 @@ export default function TasksScreen() {
 
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
   const { logValues, saveError, clearSaveError } = useOptimisticLog(uid);
-  const saveGoals = useSaveGoals(uid);
+  const saveGoals = useSaveGoals(uid, 'task', scope, refDate);
 
   const [editing, setEditing] = useState(false);
   const [addNew, setAddNew] = useState(false);
