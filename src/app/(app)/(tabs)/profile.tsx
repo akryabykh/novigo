@@ -35,9 +35,9 @@ export default function ProfileScreen() {
   const firstName = draft.firstName ?? profile?.firstName ?? '';
   const lastName = draft.lastName ?? profile?.lastName ?? '';
   const middleName = draft.middleName ?? profile?.middleName ?? '';
-  const setFirstName = (v: string) => setDraft((d) => ({ ...d, firstName: v }));
-  const setLastName = (v: string) => setDraft((d) => ({ ...d, lastName: v }));
-  const setMiddleName = (v: string) => setDraft((d) => ({ ...d, middleName: v }));
+  const setFirstName = (v: string) => { setNameMsg(null); setNameErr(null); setDraft((d) => ({ ...d, firstName: v })); };
+  const setLastName = (v: string) => { setNameMsg(null); setNameErr(null); setDraft((d) => ({ ...d, lastName: v })); };
+  const setMiddleName = (v: string) => { setNameMsg(null); setNameErr(null); setDraft((d) => ({ ...d, middleName: v })); };
   const [nameMsg, setNameMsg] = useState<string | null>(null);
   const [nameErr, setNameErr] = useState<string | null>(null);
 
@@ -47,7 +47,7 @@ export default function ProfileScreen() {
     const p = nameSchema.safeParse({ firstName, lastName, middleName });
     if (!p.success) return setNameErr(p.error.issues[0].message);
     updateNames.mutate(
-      { firstName, lastName, middleName },
+      p.data,
       {
         onSuccess: () => setNameMsg('Сохранено'),
         onError: (e: any) => setNameErr(e?.message ?? 'Не удалось сохранить'),
@@ -123,9 +123,9 @@ export default function ProfileScreen() {
       <Text variant="heading">Имя</Text>
       <Card>
         <View style={{ gap: spacing.md }}>
-          <Input label="Имя" value={firstName} onChangeText={setFirstName} />
-          <Input label="Фамилия" value={lastName} onChangeText={setLastName} />
-          <Input label="Отчество" value={middleName} onChangeText={setMiddleName} />
+          <Input editable={!updateNames.isPending} label="Имя" value={firstName} onChangeText={setFirstName} />
+          <Input editable={!updateNames.isPending} label="Фамилия" value={lastName} onChangeText={setLastName} />
+          <Input editable={!updateNames.isPending} label="Отчество" value={middleName} onChangeText={setMiddleName} />
           {nameErr ? (
             <Text variant="caption" tone="danger">
               {nameErr}

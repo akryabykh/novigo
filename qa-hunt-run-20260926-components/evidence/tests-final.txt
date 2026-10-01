@@ -1,0 +1,18 @@
+PASS src/__tests__/auth-screens.test.tsx
+PASS src/__tests__/editor-components.test.tsx
+PASS src/__tests__/rendered-components.test.tsx
+PASS src/__tests__/optimistic-hook.test.tsx
+PASS src/__tests__/log-cache.test.ts
+PASS src/__tests__/log-writer.test.ts
+PASS src/__tests__/scope.test.ts
+PASS src/__tests__/weights.test.ts
+PASS src/__tests__/rings.test.ts
+PASS src/__tests__/logging.test.ts
+PASS src/__tests__/engine.test.ts
+PASS src/__tests__/calendar.test.ts
+PASS src/__tests__/task-row-logic.test.ts
+
+Test Suites: 13 passed, 13 total
+Tests:       88 passed, 88 total
+Snapshots:   0 total
+Time:        1.653 s, estimated 4 s

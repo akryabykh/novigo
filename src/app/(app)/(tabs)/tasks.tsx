@@ -7,7 +7,6 @@ import {
   computeRings,
   equalWeights,
   goalCurrent,
-  goalMaxOnDate,
   goalsForScope,
 } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
@@ -15,6 +14,7 @@ import { CalendarScaffold } from '../../../features/calendar/CalendarScaffold';
 import { useCalendar } from '../../../features/calendar/useCalendar';
 import { useOptimisticLog } from '../../../features/calendar/useOptimisticLog';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
+import { taskLogChanges } from '../../../features/goals/task-row-logic';
 import { TaskRow } from '../../../features/goals/TaskRow';
 import { useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
 import { Button, EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
@@ -37,7 +37,7 @@ export default function TasksScreen() {
   const { today, scope, refDate } = cal;
 
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
-  const { logValue, saveError, clearSaveError } = useOptimisticLog(uid);
+  const { logValues, saveError, clearSaveError } = useOptimisticLog(uid);
   const saveGoals = useSaveGoals(uid);
 
   const [editing, setEditing] = useState(false);
@@ -65,14 +65,16 @@ export default function TasksScreen() {
   const writableSelected = selectedTasks.filter(writable);
   const hasAnyTasks = tasks.length > 0;
 
-  const doneAll = () => writableSelected.forEach((g) => logValue(g.id, refDate, goalMaxOnDate(g, logs, refDate)));
-  const clearAll = () => writableSelected.forEach((g) => logValue(g.id, refDate, 0));
+  const doneAll = () => logValues(writableSelected.flatMap((g) => taskLogChanges(g, logs, refDate, true)));
+  const clearAll = () => logValues(writableSelected.flatMap((g) => taskLogChanges(g, logs, refDate, false)));
 
   const closeEditor = () => {
     setEditing(false);
     setAddNew(false);
   };
   const openAdd = () => {
+    if (saveGoals.isPending) return;
+    saveGoals.reset();
     setAddNew(true);
     setEditing(true);
   };
@@ -88,6 +90,7 @@ export default function TasksScreen() {
   return (
     <CalendarScaffold
       cal={cal}
+      navigationDisabled={editing || saveGoals.isPending}
       rings={rings}
       daysWithProgress={daysWithProgress}
       onSelectScope={(tf) => {
@@ -97,8 +100,8 @@ export default function TasksScreen() {
       isError={isError}
       refetch={refetch}
       isRefetching={isRefetching}
-      saveError={saveError ? saveError.message : null}
-      onDismissError={clearSaveError}>
+      saveError={saveGoals.isError && !editing ? 'Не удалось сохранить изменения. Проверь соединение и повтори.' : saveError ? 'Не удалось сохранить отметку. Проверь соединение и повтори.' : null}
+      onDismissError={() => { clearSaveError(); saveGoals.reset(); }}>
       {isLoading ? (
         <View style={{ gap: spacing.md }}>
           <Skeleton height={56} rounded={radius.lg} />
@@ -106,6 +109,7 @@ export default function TasksScreen() {
         </View>
       ) : editing ? (
         <HorizonEditor
+          key={`${scope}:${refDate}`}
           scope={scope}
           kind="task"
           existing={selectedTasks}
@@ -163,7 +167,7 @@ export default function TasksScreen() {
                   logs={logs}
                   date={refDate}
                   readOnly={!writable(t)}
-                  onToggle={(id, v) => logValue(id, refDate, v)}
+                  onToggle={logValues}
                   onDelete={() => deleteTask(t)}
                 />
               ))}

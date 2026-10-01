@@ -13,6 +13,7 @@ import {
 import type { DailyLog, Goal } from '../core/domain';
 import { qk } from '../core/query';
 import { syncGamification } from './gamification/sync';
+import { overlayPendingLogs } from './calendar/log-writer';
 
 export interface Workspace {
   goals: Goal[];
@@ -38,9 +39,10 @@ export function useProfile(uid: string | undefined) {
 }
 
 export function useWorkspace(uid: string | undefined) {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: qk.workspace(uid ?? 'anon'),
-    queryFn: () => loadWorkspace(uid!),
+    queryFn: async () => overlayPendingLogs(qc, uid!, await loadWorkspace(uid!)),
     enabled: !!uid,
   });
 }

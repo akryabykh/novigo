@@ -8,7 +8,8 @@ import type { DailyLog, Goal } from '../../core/domain';
 import { Card, CheckIcon, Text, TrashIcon } from '../../ui/components';
 import { spacing, timeframeColor, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
-import { handleDeletePress, isTaskDone, taskToggleValue } from './task-row-logic';
+import type { LogInput } from '../calendar/log-cache';
+import { handleDeletePress, isTaskDone, taskLogChanges } from './task-row-logic';
 
 export function TaskRow({
   task,
@@ -21,7 +22,7 @@ export function TaskRow({
   task: Goal;
   logs: DailyLog[];
   date: string;
-  onToggle: (taskId: string, value: number) => void;
+  onToggle: (changes: LogInput[]) => void;
   onDelete?: () => void;
   /** future/inactive date — show state but don't allow toggling */
   readOnly?: boolean;
@@ -33,7 +34,7 @@ export function TaskRow({
   const toggle = () => {
     if (readOnly) return;
     if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
-    onToggle(task.id, taskToggleValue(task, logs, date));
+    onToggle(taskLogChanges(task, logs, date));
   };
 
   const handleDelete = (e: GestureResponderEvent) => handleDeletePress(e, onDelete);
