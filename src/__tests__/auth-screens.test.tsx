@@ -16,6 +16,7 @@ const mockReset = jest.fn<() => Promise<void>>();
 const mockComplete = jest.fn<() => Promise<unknown>>();
 const mockMutate = jest.fn();
 const mockSignOut = jest.fn<() => Promise<void>>();
+const mockSavePreferences = jest.fn<() => Promise<void>>();
 jest.mock('expo-router', () => ({ Link: 'Link', useRouter: () => ({ push: jest.fn(), replace: jest.fn() }) }));
 jest.mock('../features/auth/auth-provider', () => ({ useAuth: () => ({
   user: { id:'u1', email:'qa@novigo.test' }, signInWithPassword: mockSignIn, signUpWithPassword: mockSignUp,
@@ -24,6 +25,9 @@ jest.mock('../features/auth/auth-provider', () => ({ useAuth: () => ({
 jest.mock('../features/queries', () => ({
   useProfile: () => ({ data: { firstName:'QA', lastName:'Local' } }),
   useUpdateNames: () => ({ mutate:mockMutate, isPending:false }),
+}));
+jest.mock('../features/preferences/FeaturePreferences', () => ({
+  useFeaturePreferences: () => ({ preferences: { showGoals: false }, ready: true, save: mockSavePreferences }),
 }));
 let tree: ReactTestRenderer;
 let qc: QueryClient;
@@ -78,4 +82,13 @@ test('profile saves trimmed names and clears success when the draft changes', as
   const callbacks = mockMutate.mock.calls[0][1] as {onSuccess:()=>void};
   await act(async()=>callbacks.onSuccess()); expect(text()).toContain('Сохранено');
   await input('Имя','Unsaved'); expect(text()).not.toContain('Сохранено');
+});
+
+test('goals tab preference changes only after pressing Save settings', async()=>{
+  mockSavePreferences.mockResolvedValue(undefined);
+  await render(<ProfileScreen />);
+  await act(async()=>tree.root.findAll(n=>String(n.type)==='Switch')[0].props.onValueChange(true));
+  expect(mockSavePreferences).not.toHaveBeenCalled();
+  await press('Сохранить настройки');
+  expect(mockSavePreferences).toHaveBeenCalledWith({showGoals:true});
 });

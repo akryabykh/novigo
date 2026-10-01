@@ -15,7 +15,7 @@ import type { DailyLog, Goal, GoalKind, Timeframe } from '../core/domain';
 import { qk } from '../core/query';
 import { syncGamification } from './gamification/sync';
 import { overlayPendingLogs } from './calendar/log-writer';
-import { loadOfflineWorkspace, queueHorizon } from './offline/sync';
+import { loadOfflineWorkspace, queueHorizon, queueTaskMove, type TaskMoveInput } from './offline/sync';
 import { readOffline, updateOffline } from './offline/store';
 
 export interface Workspace {
@@ -94,6 +94,15 @@ export function useSaveGoals(uid: string | undefined, kind: GoalKind, timeframe:
       qc.invalidateQueries({ queryKey: qk.workspace(uid) });
       if (Platform.OS !== 'web') void syncGamificationSafe(uid, qc);
     },
+  });
+}
+
+export function useMoveTask(uid: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    networkMode: Platform.OS === 'web' ? 'always' : 'online',
+    mutationFn: (input: TaskMoveInput) => queueTaskMove(uid!, input, qc),
+    onSuccess: () => { if (uid) void qc.invalidateQueries({ queryKey: qk.workspace(uid) }); },
   });
 }
 

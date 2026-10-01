@@ -177,6 +177,9 @@ function sumInRange(goalId: string, logs: DailyLog[], start: string, end: string
 // ---------- ВЗВЕШЕННЫЙ ПРОГРЕСС ГРУППЫ ----------
 function weighted(goals: Goal[], fn: (g: Goal) => number): number | null {
   if (goals.length === 0) return null;
+  // Task checkboxes contribute equally even after moving between horizons.
+  // Stored weights remain relevant only to manually weighted goals.
+  if (goals.every((g) => g.kind === 'task')) return goals.reduce((sum, g) => sum + fn(g), 0) / goals.length;
   const wsum = goals.reduce((s, g) => s + g.weight, 0) || 1;
   return goals.reduce((acc, g) => acc + fn(g) * (g.weight / wsum), 0);
 }

@@ -29,10 +29,9 @@ export function taskLogChanges(task: Goal, logs: DailyLog[], date: string, done?
 }
 
 /**
- * Handle a delete tap. The trash button sits INSIDE the row's toggle Pressable,
- * so we stop the press from bubbling — deleting must never also toggle the task.
+ * Opening actions must never also check or uncheck the task.
  */
-export function handleDeletePress(e: { stopPropagation?: () => void }, onDelete?: () => void): void {
+export function handleActionPress(e: { stopPropagation?: () => void }, onActions?: () => void): void {
   e.stopPropagation?.();
-  onDelete?.();
+  onActions?.();
 }
