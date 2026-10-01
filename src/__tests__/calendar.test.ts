@@ -10,9 +10,13 @@ import {
   weekdayMon0,
   weeksOfMonth,
 } from '../core/logic';
-import { addMonths } from '../features/calendar/format';
+import { addMonths, periodTitle } from '../features/calendar/format';
 
 describe('calendar boundaries (week starts Monday)', () => {
+  test('day heading shows the weekday and date even when it is today', () => {
+    expect(periodTitle('day', '2026-10-01', '2026-10-01')).toBe('Чт, 1 октября');
+    expect(periodTitle('day', '2027-01-01', '2026-10-01')).toBe('Пт, 1 января 2027');
+  });
   test('weekdayMon0: Monday=0 … Sunday=6', () => {
     expect(weekdayMon0('2024-01-01')).toBe(0); // Mon
     expect(weekdayMon0('2024-01-07')).toBe(6); // Sun

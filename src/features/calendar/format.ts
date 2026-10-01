@@ -1,6 +1,6 @@
 // Pure calendar formatting shared by the Goals and Tasks screens.
 import type { Timeframe } from '../../core/domain';
-import { addDays, endOfWeek, startOfWeek } from '../../core/logic';
+import { endOfWeek, startOfWeek, weekdayMon0 } from '../../core/logic';
 
 export const WEEKDAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
@@ -31,10 +31,8 @@ export function addMonths(d: string, n: number): string {
 /** Human title for the period around date `d` at the given scope. */
 export function periodTitle(scope: Timeframe, d: string, today: string): string {
   if (scope === 'day') {
-    if (d === today) return 'Сегодня';
-    if (d === addDays(today, -1)) return 'Вчера';
-    if (d === addDays(today, 1)) return 'Завтра';
-    return `${dayNum(d)} ${MONTHS_GEN[monthOf(d)]}`;
+    const year = d.slice(0, 4) === today.slice(0, 4) ? '' : ` ${d.slice(0, 4)}`;
+    return `${WEEKDAYS_SHORT[weekdayMon0(d)]}, ${dayNum(d)} ${MONTHS_GEN[monthOf(d)]}${year}`;
   }
   if (scope === 'week') {
     const s = startOfWeek(d);

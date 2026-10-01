@@ -113,34 +113,10 @@ export function CalendarScaffold({
               </View>
 
               {/* period navigator */}
-              <View style={{ gap: spacing.sm }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <NavArrow disabled={navigationDisabled} label="‹" onPress={() => cal.stepPeriod(-1)} />
-                  {scope === 'day' ? (
-                    <View style={{ flex: 1 }} />
-                  ) : (
-                    <Text variant="heading">{periodTitle(scope, refDate, today)}</Text>
-                  )}
-                  <NavArrow disabled={navigationDisabled} label="›" onPress={() => cal.stepPeriod(1)} />
-                </View>
-                {refDate !== today ? (
-                  <Pressable
-                    disabled={navigationDisabled}
-                    onPress={cal.goToday}
-                    style={{
-                      alignSelf: 'center',
-                      paddingHorizontal: spacing.lg,
-                      height: 32,
-                      borderRadius: radius.md,
-                      backgroundColor: c.surfaceAlt,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                    <Text variant="label" tone="accent">
-                      Сегодня
-                    </Text>
-                  </Pressable>
-                ) : null}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <NavArrow disabled={navigationDisabled} label="‹" onPress={() => stepPeriod(-1)} />
+                <Text variant="heading" style={{ textAlign: 'center' }}>{periodTitle(scope, refDate, today)}</Text>
+                <NavArrow disabled={navigationDisabled} label="›" onPress={() => stepPeriod(1)} />
               </View>
 
               {/* rings selector */}
@@ -208,6 +184,24 @@ export function CalendarScaffold({
               ) : null}
 
               {children}
+
+              {refDate !== today ? (
+                <Pressable
+                  disabled={navigationDisabled}
+                  onPress={cal.goToday}
+                  style={{
+                    alignSelf: 'center',
+                    marginTop: 'auto',
+                    paddingHorizontal: spacing.lg,
+                    height: 32,
+                    borderRadius: radius.md,
+                    backgroundColor: c.surfaceAlt,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                  <Text variant="label" tone="accent">Сегодня</Text>
+                </Pressable>
+              ) : null}
             </>
           )}
         </View>
