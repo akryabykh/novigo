@@ -5,6 +5,7 @@ import { CalendarScaffold } from '../features/calendar/CalendarScaffold';
 import { HorizonEditor } from '../features/goals/HorizonEditor';
 import { isRealDate, parseWeight } from '../features/goals/editor-validation';
 import type { Goal } from '../core/domain';
+import { Text } from '../ui/components';
 
 jest.mock('react-native', () => ({ View: 'View', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
   PanResponder: { create: (handlers: object) => ({ panHandlers: handlers }) } }));
@@ -43,8 +44,22 @@ describe('editor safety', () => {
     await act(async () => { tree = create(<CalendarScaffold cal={cal} rings={{ day: 0, week: 0, month: 0 }} daysWithProgress={new Set()} onSelectScope={noop} navigationDisabled isError={false} refetch={noop} isRefetching={false} saveError="Deletion failed"><></></CalendarScaffold>); });
     const actions = tree.root.findAllByType('Pressable');
     expect(actions.length).toBe(8);
-    for (const button of actions.slice(0, -1)) expect(button.props.disabled).toBe(true);
+    expect(actions.filter((button: any) => button.props.disabled === true)).toHaveLength(7);
     expect(tree.root.findAllByType('Text').some((node: any) => node.props.children === 'Deletion failed')).toBe(true);
+    await act(async () => { tree.unmount(); });
+  });
+  test('today shortcut stays below the screen content', async () => {
+    const noop = jest.fn();
+    const cal = { today: '2026-09-26', refDate: '2026-09-25', scope: 'day' as const, setScope: noop, setRefDate: noop,
+      weekDays: ['2026-09-25'], stepPeriod: noop, goToday: noop };
+    let tree: any;
+    await act(async () => { tree = create(<CalendarScaffold cal={cal} rings={{ day: 0, week: 0, month: 0 }}
+      daysWithProgress={new Set()} onSelectScope={noop} isError={false} refetch={noop} isRefetching={false}>
+      <Text>Содержимое</Text>
+    </CalendarScaffold>); });
+    const labels = tree.root.findAllByType('Text').map((node: any) => node.props.children);
+    expect(labels).toContain('Пт, 25 сентября');
+    expect(labels.indexOf('Сегодня')).toBeGreaterThan(labels.indexOf('Содержимое'));
     await act(async () => { tree.unmount(); });
   });
   test('horizontal swipes step one period without capturing vertical scrolling or disabled navigation', async () => {
