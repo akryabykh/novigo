@@ -5,25 +5,25 @@ import * as Haptics from 'expo-haptics';
 import { Platform, Pressable, View, type GestureResponderEvent } from 'react-native';
 
 import type { DailyLog, Goal } from '../../core/domain';
-import { Card, CheckIcon, Text, TrashIcon } from '../../ui/components';
+import { Card, CheckIcon, GearIcon, Text } from '../../ui/components';
 import { spacing, timeframeColor, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 import type { LogInput } from '../calendar/log-cache';
-import { handleDeletePress, isTaskDone, taskLogChanges } from './task-row-logic';
+import { handleActionPress, isTaskDone, taskLogChanges } from './task-row-logic';
 
 export function TaskRow({
   task,
   logs,
   date,
   onToggle,
-  onDelete,
+  onActions,
   readOnly,
 }: {
   task: Goal;
   logs: DailyLog[];
   date: string;
   onToggle: (changes: LogInput[]) => void;
-  onDelete?: () => void;
+  onActions?: () => void;
   /** future/inactive date — show state but don't allow toggling */
   readOnly?: boolean;
 }) {
@@ -37,44 +37,44 @@ export function TaskRow({
     onToggle(taskLogChanges(task, logs, date));
   };
 
-  const handleDelete = (e: GestureResponderEvent) => handleDeletePress(e, onDelete);
+  const openActions = (e: GestureResponderEvent) => handleActionPress(e, onActions);
 
   return (
     <Card>
-      <Pressable
-        onPress={toggle}
-        disabled={readOnly}
-        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, opacity: readOnly && !done ? 0.6 : 1 }}>
-        <View
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            borderWidth: done ? 0 : 2,
-            borderColor: c.border,
-            backgroundColor: done ? color : 'transparent',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-          {done ? <CheckIcon size={16} color="#fff" strokeWidth={3} /> : null}
-        </View>
-        <Text
-          variant="label"
-          style={{
-            flex: 1,
-            color: done ? c.textFaint : c.text,
-            textDecorationLine: done ? 'line-through' : 'none',
-            fontFamily: typography.regular,
-          }}
-          numberOfLines={2}>
-          {task.title}
-        </Text>
-        {onDelete ? (
-          <Pressable onPress={handleDelete} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
-            <TrashIcon size={18} color={c.textFaint} strokeWidth={1.8} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <Pressable onPress={toggle} disabled={readOnly}
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md, opacity: readOnly && !done ? 0.6 : 1 }}>
+          <View
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              borderWidth: done ? 0 : 2,
+              borderColor: c.border,
+              backgroundColor: done ? color : 'transparent',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            {done ? <CheckIcon size={16} color="#fff" strokeWidth={3} /> : null}
+          </View>
+          <Text
+            variant="label"
+            style={{
+              flex: 1,
+              color: done ? c.textFaint : c.text,
+              textDecorationLine: done ? 'line-through' : 'none',
+              fontFamily: typography.regular,
+            }}
+            numberOfLines={2}>
+            {task.title}
+          </Text>
+        </Pressable>
+        {onActions ? (
+          <Pressable accessibilityLabel={`Действия с задачей ${task.title}`} onPress={openActions} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
+            <GearIcon size={20} color={c.textFaint} strokeWidth={1.8} />
           </Pressable>
         ) : null}
-      </Pressable>
+      </View>
     </Card>
   );
 }

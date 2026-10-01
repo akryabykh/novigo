@@ -17,6 +17,12 @@ describe('day ring + target cap', () => {
   });
 });
 
+test('task checkboxes have equal ring weight after a move, regardless of their former stored weights', () => {
+  const tasks = [mkGoal({ id: 'a', kind: 'task', timeframe: 'day', weight: 100 }),
+    mkGoal({ id: 'b', kind: 'task', timeframe: 'day', weight: 20 })];
+  expect(computeRings(tasks, [log('b', REF, 1)], REF).day).toBeCloseTo(0.5);
+});
+
 describe('week ring = 60% day-part + 40% week-part (missing half = 0)', () => {
   test('only daily goals, perfect all week → 0.6', () => {
     const daily = mkGoal({ id: 'd', timeframe: 'day', target: 1 });

@@ -1,11 +1,11 @@
-import { describe, expect, jest, test } from '@jest/globals';
+import { beforeEach, describe, expect, jest, test } from '@jest/globals';
 import { webcrypto } from 'node:crypto';
 import { QueryClient } from '@tanstack/react-query';
 
 import { qk } from '../core/query';
 import { listGoalsByUser, listLogsByGoals, supabase } from '../core/data';
 import { mkGoal } from './fixtures';
-import { loadOfflineWorkspace, queueHorizon, resolveOfflineConflict, synchronize } from '../features/offline/sync';
+import { loadOfflineWorkspace, queueHorizon, queueTaskMove, resolveOfflineConflict, synchronize } from '../features/offline/sync';
 import { readOffline } from '../features/offline/store';
 
 jest.mock('../core/data', () => ({
@@ -22,6 +22,43 @@ const create = { kind: 'goal' as const, title: 'Новая цель', timeframe:
   target: 1, weight: 50, startDate: '2026-10-01', endDate: null };
 
 describe('phone offline queue', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+    jest.mocked(supabase.rpc).mockReset();
+    jest.mocked(supabase.from).mockReset();
+    jest.mocked(listGoalsByUser).mockReset();
+    jest.mocked(listLogsByGoals).mockReset();
+  });
+  test('a task move survives offline and replays once with both revision checks', async () => {
+    const moveUid = '66666666-6666-4666-8666-666666666666';
+    const task = mkGoal({ id: '77777777-7777-4777-8777-777777777777', userId: moveUid,
+      kind: 'task', timeframe: 'month', startDate: '2026-10-01', endDate: '2026-10-31' });
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(qk.workspace(moveUid), { goals: [task], logs: [{ goalId: task.id, date: '2026-10-01', value: 1 }],
+      revisions: { 'task:month': 2, 'task:day': 3 } });
+    await queueTaskMove(moveUid, { taskId: task.id, from: 'month', to: 'day',
+      startDate: '2026-10-04', endDate: '2026-10-04' }, qc);
+    expect((await readOffline(moveUid)).operations).toHaveLength(1);
+    expect(qc.getQueryData<{ goals: typeof task[]; logs: unknown[] }>(qk.workspace(moveUid))?.goals[0].timeframe).toBe('day');
+    expect(qc.getQueryData<{ logs: unknown[] }>(qk.workspace(moveUid))?.logs).toEqual([]);
+
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: true } });
+    jest.mocked(supabase.rpc).mockReset().mockResolvedValue({ data: { source: 3, destination: 4 }, error: null } as never);
+    jest.mocked(listGoalsByUser).mockResolvedValue([{ ...task, timeframe: 'day', startDate: '2026-10-04', endDate: '2026-10-04' }]);
+    jest.mocked(listLogsByGoals).mockResolvedValue([]);
+    jest.mocked(supabase.from).mockReturnValue({ select: () => ({ eq: async () => ({ data: [
+      { kind: 'task', timeframe: 'month', revision: 3 }, { kind: 'task', timeframe: 'day', revision: 4 },
+    ], error: null }) }) } as never);
+    await synchronize(moveUid, qc);
+    expect(supabase.rpc).toHaveBeenCalledWith('apply_offline_task_move', expect.objectContaining({
+      p_task_id: task.id, p_from: 'month', p_to: 'day',
+      p_expected_source_revision: 2, p_expected_destination_revision: 3,
+    }));
+    expect((await readOffline(moveUid)).operations).toEqual([]);
+    qc.clear();
+  });
+
   test('a goal create survives a closed view and syncs once on reconnect', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     qc.setQueryData(qk.workspace(uid), { goals: [old], logs: [], revisions: { 'goal:day': 0 } });

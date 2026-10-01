@@ -71,7 +71,7 @@ npx expo start --web
 
 Сборка — статический SPA (`web.output: "single"` в `app.json`).
 
-1. До публикации офлайн-клиента выполните `supabase/migrations/0008_offline_sync.sql` в Supabase SQL Editor. Старые миграции не переписывайте.
+1. До публикации офлайн-клиента выполните `supabase/migrations/0008_offline_sync.sql`, а перед выпуском переноса задач — `supabase/migrations/0009_task_move.sql` в Supabase SQL Editor. Старые миграции не переписывайте.
 2. `node scripts/build-web.mjs` → артефакт в `dist/`, включая manifest и service worker.
 3. На Vercel: Build Command берётся из `vercel.json` (`node scripts/build-web.mjs`), Output Directory — `dist`. Если в настройках проекта задано собственное значение Build Command, обновите его вручную.
 4. Добавьте переменные `EXPO_PUBLIC_SUPABASE_URL` и `EXPO_PUBLIC_SUPABASE_ANON_KEY` в Project → Settings → Environment Variables.

@@ -2,13 +2,16 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 
 import { ListIcon, TargetIcon, UserIcon } from '../../../ui/components';
+import { useFeaturePreferences } from '../../../features/preferences/FeaturePreferences';
 import { typography } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
 export default function TabsLayout() {
   const c = useColors();
+  const { preferences } = useFeaturePreferences();
   return (
     <Tabs
+      initialRouteName="tasks"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: c.accent,
@@ -33,6 +36,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Цели',
+          href: preferences.showGoals ? undefined : null,
           tabBarIcon: ({ color }) => <TargetIcon color={color as string} size={24} />,
         }}
       />

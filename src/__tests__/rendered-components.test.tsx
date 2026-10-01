@@ -67,6 +67,17 @@ test('TaskRow clears completion on the recorded day and blocks read-only toggle'
   expect(onToggle).toHaveBeenCalledTimes(1);
 });
 
+test('TaskRow keeps the action button usable when a future task cannot be checked', async () => {
+  const task = mkGoal({ id: 'future', kind: 'task', timeframe: 'day' });
+  const onToggle = jest.fn();
+  const onActions = jest.fn();
+  await render(<TaskRow task={task} logs={[]} date="2026-10-02" readOnly onToggle={onToggle} onActions={onActions} />);
+  expect(hosts('Pressable')[0].props.disabled).toBe(true);
+  await act(async () => hosts('Pressable')[1].props.onPress({ stopPropagation: jest.fn() }));
+  expect(onActions).toHaveBeenCalledTimes(1);
+  expect(onToggle).not.toHaveBeenCalled();
+});
+
 test('SegmentedControl and empty-state CTA forward selected actions', async () => {
   const change = jest.fn(), cta = jest.fn();
   await render(<><SegmentedControl segments={[{value:'a',label:'A'},{value:'b',label:'B'}]} value="a" onChange={change} /><EmptyState title="Empty" ctaTitle="Add" onCta={cta} /></>);

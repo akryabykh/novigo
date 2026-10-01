@@ -11,7 +11,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -21,6 +21,7 @@ import { queryClient } from '../core/query';
 import { AuthProvider, useAuth } from '../features/auth/auth-provider';
 import { useProfile } from '../features/queries';
 import { OfflineStatus } from '../features/offline/OfflineStatus';
+import { FeaturePreferencesProvider } from '../features/preferences/FeaturePreferences';
 import { EmptyState } from '../ui/components';
 import { SetupNotice } from '../ui/SetupNotice';
 import { spacing } from '../ui/theme';
@@ -34,6 +35,7 @@ function RootGate() {
   const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile(uid);
   const segments = useSegments();
   const router = useRouter();
+  const openedTasks = useRef(false);
   const c = useColors();
 
   useEffect(() => {
@@ -41,6 +43,7 @@ function RootGate() {
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!session) {
+      openedTasks.current = false;
       if (!inAuthGroup) router.replace('/(auth)/login');
       return;
     }
@@ -56,7 +59,10 @@ function RootGate() {
       if (!onNameStep) router.replace('/(auth)/complete-profile');
       return;
     }
-    if (inAuthGroup) router.replace('/(app)');
+    if (!openedTasks.current) {
+      openedTasks.current = true;
+      router.replace('/(app)/(tabs)/tasks');
+    }
   }, [session, initializing, profile, profileLoading, profileError, segments, router]);
 
   // Signed in but the profile request failed (e.g. network) — offer a retry
@@ -116,7 +122,9 @@ export default function RootLayout() {
             <ThemedStatusBar />
             {isSupabaseConfigured ? (
               <AuthProvider>
-                <RootGate />
+                <FeaturePreferencesProvider>
+                  <RootGate />
+                </FeaturePreferencesProvider>
               </AuthProvider>
             ) : (
               <SetupNotice />

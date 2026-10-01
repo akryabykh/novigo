@@ -1,5 +1,5 @@
 import { describe, expect, jest, test } from '@jest/globals';
-import { handleDeletePress, isTaskDone, openTaskCounts, taskLogChanges, taskToggleValue } from '../features/goals/task-row-logic';
+import { handleActionPress, isTaskDone, openTaskCounts, taskLogChanges, taskToggleValue } from '../features/goals/task-row-logic';
 import { log, mkGoal } from './fixtures';
 import { applyLog } from '../features/calendar/log-cache';
 
@@ -76,18 +76,18 @@ describe('task period changes', () => {
   });
 });
 
-describe('delete does not toggle the task', () => {
-  test('stops event propagation and calls onDelete only', () => {
+describe('actions do not toggle the task', () => {
+  test('stops event propagation and opens actions only', () => {
     const stopPropagation = jest.fn();
-    const onDelete = jest.fn();
-    handleDeletePress({ stopPropagation }, onDelete);
+    const onActions = jest.fn();
+    handleActionPress({ stopPropagation }, onActions);
     expect(stopPropagation).toHaveBeenCalledTimes(1);
-    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onActions).toHaveBeenCalledTimes(1);
   });
 
-  test('is a no-op when no onDelete is provided (still stops propagation)', () => {
+  test('is a no-op when no action handler is provided (still stops propagation)', () => {
     const stopPropagation = jest.fn();
-    expect(() => handleDeletePress({ stopPropagation }, undefined)).not.toThrow();
+    expect(() => handleActionPress({ stopPropagation }, undefined)).not.toThrow();
     expect(stopPropagation).toHaveBeenCalledTimes(1);
   });
 });

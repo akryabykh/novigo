@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Switch, View } from 'react-native';
 
 import { nameSchema, passwordSchema } from '../../../core/validation';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { useProfile, useUpdateNames } from '../../../features/queries';
+import { useFeaturePreferences } from '../../../features/preferences/FeaturePreferences';
 import {
   Button,
   Card,
@@ -28,6 +29,21 @@ export default function ProfileScreen() {
   const uid = user?.id;
   const { data: profile } = useProfile(uid);
   const updateNames = useUpdateNames(uid);
+  const { preferences, ready: preferencesReady, save: savePreferences } = useFeaturePreferences();
+  const [showGoalsOverride, setShowGoalsOverride] = useState<boolean | null>(null);
+  const showGoalsDraft = showGoalsOverride ?? preferences.showGoals;
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [preferencesMessage, setPreferencesMessage] = useState<string | null>(null);
+  const saveDisplay = async () => {
+    setPreferencesSaving(true);
+    setPreferencesMessage(null);
+    try {
+      await savePreferences({ showGoals: showGoalsDraft });
+      setShowGoalsOverride(null);
+      setPreferencesMessage('Сохранено');
+    } catch { setPreferencesMessage('Не удалось сохранить настройки'); }
+    finally { setPreferencesSaving(false); }
+  };
 
   // Edited fields are stored as overrides on top of the loaded profile,
   // so we never sync server data into state via an effect.
@@ -165,6 +181,18 @@ export default function ProfileScreen() {
       </Card>
 
       {/* appearance */}
+      <Text variant="heading">Разделы приложения</Text>
+      <Card>
+        <View style={{ gap: spacing.md }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <Text variant="label" style={{ flex: 1 }}>Показывать «Цели» в нижней панели</Text>
+            <Switch value={showGoalsDraft} onValueChange={setShowGoalsOverride} disabled={!preferencesReady || preferencesSaving} />
+          </View>
+          {preferencesMessage ? <Text variant="caption">{preferencesMessage}</Text> : null}
+          <Button title="Сохранить настройки" size="md" onPress={saveDisplay} loading={preferencesSaving} disabled={!preferencesReady} />
+        </View>
+      </Card>
+
       <Text variant="heading">Тема</Text>
       <SegmentedControl segments={THEME_SEGMENTS} value={preference} onChange={setPreference} />
 

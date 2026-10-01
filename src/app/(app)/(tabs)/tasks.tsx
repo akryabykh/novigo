@@ -14,9 +14,10 @@ import { CalendarScaffold } from '../../../features/calendar/CalendarScaffold';
 import { useCalendar } from '../../../features/calendar/useCalendar';
 import { useOptimisticLog } from '../../../features/calendar/useOptimisticLog';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
+import { TaskActions } from '../../../features/goals/TaskActions';
 import { openTaskCounts, taskLogChanges } from '../../../features/goals/task-row-logic';
 import { TaskRow } from '../../../features/goals/TaskRow';
-import { useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
+import { useMoveTask, useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
 import { Button, EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
 import { confirmAction } from '../../../ui/confirm';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
@@ -39,9 +40,11 @@ export default function TasksScreen() {
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
   const { logValues, saveError, clearSaveError } = useOptimisticLog(uid);
   const saveGoals = useSaveGoals(uid, 'task', scope, refDate);
+  const moveTask = useMoveTask(uid);
 
   const [editing, setEditing] = useState(false);
   const [addNew, setAddNew] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Goal | null>(null);
 
   const logs = useMemo(() => ws?.logs ?? [], [ws]);
   const tasks = useMemo(() => (ws ? ws.goals.filter((g) => g.kind === 'task') : []), [ws]);
@@ -81,17 +84,24 @@ export default function TasksScreen() {
   };
   const submitHorizon = (payload: SavePayload) => saveGoals.mutate(payload, { onSuccess: closeEditor });
 
+  const closeActions = () => { setSelectedTask(null); saveGoals.reset(); moveTask.reset(); };
+  const editTask = (title: string) => {
+    if (!selectedTask) return;
+    saveGoals.mutate({ updates: [{ id: selectedTask.id, title, target: 1, weight: selectedTask.weight,
+      endDate: selectedTask.endDate }], creates: [], deletes: [] }, { onSuccess: closeActions });
+  };
+
   const deleteTask = async (task: Goal) => {
     if (!(await confirmAction(`Удалить задачу «${task.title}»?`))) return;
     // re-split weights ONLY among tasks active in the same period (item 7)
     const siblings = goalsForScope(tasks, task.timeframe, refDate).filter((x) => x.id !== task.id);
-    saveGoals.mutate({ updates: equalizeTasks(siblings), creates: [], deletes: [task.id] });
+    saveGoals.mutate({ updates: equalizeTasks(siblings), creates: [], deletes: [task.id] }, { onSuccess: closeActions });
   };
 
   return (
     <CalendarScaffold
       cal={cal}
-      navigationDisabled={editing || saveGoals.isPending}
+      navigationDisabled={editing || !!selectedTask || saveGoals.isPending || moveTask.isPending}
       rings={rings}
       pendingTaskCounts={pendingTaskCounts}
       daysWithProgress={daysWithProgress}
@@ -102,7 +112,7 @@ export default function TasksScreen() {
       isError={isError}
       refetch={refetch}
       isRefetching={isRefetching}
-      saveError={saveGoals.isError && !editing ? 'Не удалось сохранить изменения. Проверь соединение и повтори.' : saveError ? 'Не удалось сохранить отметку. Проверь соединение и повтори.' : null}
+      saveError={saveGoals.isError && !editing ? saveGoals.error.message : saveError ? 'Не удалось сохранить отметку. Проверь соединение и повтори.' : null}
       onDismissError={() => { clearSaveError(); saveGoals.reset(); }}>
       {isLoading ? (
         <View style={{ gap: spacing.md }}>
@@ -120,7 +130,7 @@ export default function TasksScreen() {
           onSave={submitHorizon}
           onCancel={closeEditor}
           saving={saveGoals.isPending}
-          serverError={saveGoals.isError ? 'Не удалось сохранить. Проверь соединение и попробуй ещё раз.' : null}
+          serverError={saveGoals.error?.message ?? null}
         />
       ) : (
         <>
@@ -170,7 +180,7 @@ export default function TasksScreen() {
                   date={refDate}
                   readOnly={!writable(t)}
                   onToggle={logValues}
-                  onDelete={() => deleteTask(t)}
+                  onActions={() => { setSelectedTask(t); saveGoals.reset(); moveTask.reset(); }}
                 />
               ))}
 
@@ -192,6 +202,15 @@ export default function TasksScreen() {
               ) : null}
             </View>
           )}
+          {selectedTask ? (
+            <TaskActions key={selectedTask.id} task={selectedTask} refDate={refDate}
+              saving={saveGoals.isPending || moveTask.isPending}
+              error={saveGoals.error?.message ?? moveTask.error?.message ?? null}
+              onClose={closeActions}
+              onEdit={editTask}
+              onDelete={() => { void deleteTask(selectedTask); }}
+              onMove={(input) => moveTask.mutate(input, { onSuccess: closeActions })} />
+          ) : null}
         </>
       )}
     </CalendarScaffold>
