@@ -3,9 +3,10 @@ import type { QueryClient } from '@tanstack/react-query';
 import { qk } from '../../core/query';
 import type { Workspace } from '../queries';
 import { applyLog, type LogInput } from './log-cache';
+import type { StoredLog } from '../offline/store';
 
-type Write = (changes: LogInput[]) => Promise<unknown>;
-type Entry = { changes: LogInput[]; resolve: () => void };
+type Write = (changes: StoredLog[]) => Promise<unknown>;
+type Entry = { changes: StoredLog[]; resolve: () => void };
 const keyOf = (v: LogInput) => `${v.goalId}|${v.date}`;
 
 /** One ordered writer per account/cache, independent of mounted screens. */
@@ -50,13 +51,16 @@ export class LogWriter {
     if (!changes.length) return Promise.resolve();
     const unique = [...new Map(changes.map((v) => [keyOf(v), { ...v }])).values()];
     const ws = this.qc.getQueryData<Workspace>(qk.workspace(this.uid));
-    for (const v of unique) {
+    const stored: StoredLog[] = unique.map((v) => ({ ...v,
+      expectedValue: ws?.logs.find((l) => l.goalId === v.goalId && l.date === v.date)?.value ?? 0,
+    }));
+    for (const v of stored) {
       if (!this.confirmed.has(keyOf(v))) {
         const old = ws?.logs.find((l) => l.goalId === v.goalId && l.date === v.date);
         this.confirmed.set(keyOf(v), { ...v, value: old?.value ?? 0 });
       }
     }
-    const finished = new Promise<void>((resolve) => this.queue.push({ changes: unique, resolve }));
+    const finished = new Promise<void>((resolve) => this.queue.push({ changes: stored, resolve }));
     this.notify({ pending: true, error: null });
     this.repaint();
     void this.drain();

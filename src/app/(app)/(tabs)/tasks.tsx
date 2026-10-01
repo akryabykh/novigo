@@ -14,7 +14,7 @@ import { CalendarScaffold } from '../../../features/calendar/CalendarScaffold';
 import { useCalendar } from '../../../features/calendar/useCalendar';
 import { useOptimisticLog } from '../../../features/calendar/useOptimisticLog';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
-import { taskLogChanges } from '../../../features/goals/task-row-logic';
+import { openTaskCounts, taskLogChanges } from '../../../features/goals/task-row-logic';
 import { TaskRow } from '../../../features/goals/TaskRow';
 import { useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
 import { Button, EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
@@ -38,7 +38,7 @@ export default function TasksScreen() {
 
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
   const { logValues, saveError, clearSaveError } = useOptimisticLog(uid);
-  const saveGoals = useSaveGoals(uid);
+  const saveGoals = useSaveGoals(uid, 'task', scope, refDate);
 
   const [editing, setEditing] = useState(false);
   const [addNew, setAddNew] = useState(false);
@@ -48,6 +48,7 @@ export default function TasksScreen() {
   const taskIds = useMemo(() => new Set(tasks.map((g) => g.id)), [tasks]);
 
   const rings = useMemo(() => computeRings(tasks, logs, refDate), [tasks, logs, refDate]);
+  const pendingTaskCounts = useMemo(() => openTaskCounts(tasks, logs, refDate), [tasks, logs, refDate]);
   const daysWithProgress = useMemo(() => {
     const s = new Set<string>();
     for (const l of logs) if (l.value > 0 && taskIds.has(l.goalId)) s.add(l.date);
@@ -92,6 +93,7 @@ export default function TasksScreen() {
       cal={cal}
       navigationDisabled={editing || saveGoals.isPending}
       rings={rings}
+      pendingTaskCounts={pendingTaskCounts}
       daysWithProgress={daysWithProgress}
       onSelectScope={(tf) => {
         cal.setScope(tf);

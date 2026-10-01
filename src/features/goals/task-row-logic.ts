@@ -1,10 +1,16 @@
 // Pure logic behind TaskRow — extracted so it's unit-testable without rendering.
-import type { DailyLog, Goal } from '../../core/domain';
-import { goalCurrent, goalMaxOnDate, isActiveOn, periodRange } from '../../core/logic';
+import type { DailyLog, Goal, Timeframe } from '../../core/domain';
+import { goalCurrent, goalMaxOnDate, goalsForScope, isActiveOn, periodRange } from '../../core/logic';
 import type { LogInput } from '../calendar/log-cache';
 
 export function isTaskDone(task: Goal, logs: DailyLog[], date: string): boolean {
   return goalCurrent(task, logs, date) >= task.target;
+}
+
+/** Count unfinished tasks in each period containing the selected date. */
+export function openTaskCounts(tasks: Goal[], logs: DailyLog[], date: string): Record<Timeframe, number> {
+  const count = (scope: Timeframe) => goalsForScope(tasks, scope, date).filter((task) => !isTaskDone(task, logs, date)).length;
+  return { day: count('day'), week: count('week'), month: count('month') };
 }
 
 /** Value to log when toggling: check → fill the remainder, uncheck → 0. */

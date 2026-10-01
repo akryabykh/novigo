@@ -1,5 +1,6 @@
 // React Query hooks — the only place screens touch the data layer.
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { Platform } from 'react-native';
 
 import {
   getProfile,
@@ -10,30 +11,42 @@ import {
   type GoalPatch,
   type SaveHorizonInput,
 } from '../core/data';
-import type { DailyLog, Goal } from '../core/domain';
+import type { DailyLog, Goal, GoalKind, Timeframe } from '../core/domain';
 import { qk } from '../core/query';
 import { syncGamification } from './gamification/sync';
 import { overlayPendingLogs } from './calendar/log-writer';
+import { loadOfflineWorkspace, queueHorizon } from './offline/sync';
+import { readOffline, updateOffline } from './offline/store';
 
 export interface Workspace {
   goals: Goal[];
   logs: DailyLog[];
+  revisions?: Record<string, number>;
+}
+
+async function loadNativeWorkspace(uid: string): Promise<Workspace> {
+  const goals = await listGoalsByUser(uid);
+  return { goals, logs: await listLogsByGoals(goals.map((g) => g.id)) };
 }
 
 /** Re-exported so the editor/screens keep a single name for a goal patch. */
 export type GoalUpdate = GoalPatch;
 
-async function loadWorkspace(uid: string): Promise<Workspace> {
-  const goals = await listGoalsByUser(uid);
-  if (goals.length === 0) return { goals: [], logs: [] };
-  const logs = await listLogsByGoals(goals.map((g) => g.id));
-  return { goals, logs };
-}
-
 export function useProfile(uid: string | undefined) {
   return useQuery({
     queryKey: qk.profile(uid ?? 'anon'),
-    queryFn: () => getProfile(uid!),
+    queryFn: async () => {
+      const cached = await readOffline(uid!);
+      if (typeof navigator !== 'undefined' && navigator.onLine === false && cached.profile) return cached.profile;
+      try {
+        const profile = await getProfile(uid!);
+        if (profile) await updateOffline(uid!, (record) => [{ ...record, profile }, undefined]);
+        return profile;
+      } catch (error) {
+        if (cached.profile) return cached.profile;
+        throw error;
+      }
+    },
     enabled: !!uid,
   });
 }
@@ -42,7 +55,8 @@ export function useWorkspace(uid: string | undefined) {
   const qc = useQueryClient();
   return useQuery({
     queryKey: qk.workspace(uid ?? 'anon'),
-    queryFn: async () => overlayPendingLogs(qc, uid!, await loadWorkspace(uid!)),
+    queryFn: async () => overlayPendingLogs(qc, uid!, Platform.OS === 'web'
+      ? await loadOfflineWorkspace(uid!, qc) : await loadNativeWorkspace(uid!)),
     enabled: !!uid,
   });
 }
@@ -62,16 +76,16 @@ export async function syncGamificationSafe(uid: string, qc: QueryClient): Promis
   }
 }
 
-/** Create / update / delete the user's goals in one atomic RPC transaction. */
-export function useSaveGoals(uid: string | undefined) {
+/** Web saves locally first; both paths commit the whole horizon atomically on the server. */
+export function useSaveGoals(uid: string | undefined, kind: GoalKind, timeframe: Timeframe, refDate: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: SaveHorizonInput) => saveHorizon(input),
+    mutationFn: (input: SaveHorizonInput) => Platform.OS === 'web'
+      ? queueHorizon(uid!, kind, timeframe, refDate, input, qc) : saveHorizon(input),
     onSuccess: () => {
       if (!uid) return;
       qc.invalidateQueries({ queryKey: qk.workspace(uid) });
-      // fire-and-forget; a gamification error does not fail the save
-      void syncGamificationSafe(uid, qc);
+      if (Platform.OS !== 'web') void syncGamificationSafe(uid, qc);
     },
   });
 }

@@ -23,17 +23,17 @@ export default function TabsLayout() {
         tabBarLabelStyle: { fontFamily: typography.medium, fontSize: 11 },
       }}>
       <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Цели',
-          tabBarIcon: ({ color }) => <TargetIcon color={color as string} size={24} />,
-        }}
-      />
-      <Tabs.Screen
         name="tasks"
         options={{
           title: 'Задачи',
           tabBarIcon: ({ color }) => <ListIcon color={color as string} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Цели',
+          tabBarIcon: ({ color }) => <TargetIcon color={color as string} size={24} />,
         }}
       />
       <Tabs.Screen

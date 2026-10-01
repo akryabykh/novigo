@@ -18,6 +18,7 @@ const ORDER: Timeframe[] = ['day', 'week', 'month'];
 export function CalendarScaffold({
   cal,
   rings,
+  pendingTaskCounts,
   daysWithProgress,
   onSelectScope,
   navigationDisabled = false,
@@ -30,6 +31,7 @@ export function CalendarScaffold({
 }: {
   cal: Calendar;
   rings: Rings;
+  pendingTaskCounts?: Record<Timeframe, number>;
   daysWithProgress: Set<string>;
   onSelectScope: (tf: Timeframe) => void;
   navigationDisabled?: boolean;
@@ -143,6 +145,7 @@ export function CalendarScaffold({
                       onPress={() => onSelectScope(tf)}
                       style={{
                         flex: 1,
+                        position: 'relative',
                         alignItems: 'center',
                         gap: spacing.sm,
                         paddingVertical: spacing.md,
@@ -152,6 +155,25 @@ export function CalendarScaffold({
                         backgroundColor: active ? c.surface : 'transparent',
                       }}>
                       <ProgressRing progress={rings[tf]} size={84} stroke={8} color={timeframeColor[tf]} />
+                      {pendingTaskCounts ? (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            top: spacing.sm,
+                            right: spacing.sm,
+                            minWidth: 24,
+                            height: 24,
+                            paddingHorizontal: spacing.xs,
+                            borderRadius: radius.full,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: timeframeColor[tf],
+                          }}>
+                          <Text variant="caption" style={{ color: c.onAccent }}>
+                            {pendingTaskCounts[tf]}
+                          </Text>
+                        </View>
+                      ) : null}
                       <Text variant="label" style={{ color: active ? timeframeColor[tf] : c.textMuted }}>
                         {timeframeLabel[tf]}
                       </Text>

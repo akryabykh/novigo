@@ -20,6 +20,7 @@ import { isSupabaseConfigured } from '../core/data';
 import { queryClient } from '../core/query';
 import { AuthProvider, useAuth } from '../features/auth/auth-provider';
 import { useProfile } from '../features/queries';
+import { OfflineStatus } from '../features/offline/OfflineStatus';
 import { EmptyState } from '../ui/components';
 import { SetupNotice } from '../ui/SetupNotice';
 import { spacing } from '../ui/theme';
@@ -76,6 +77,7 @@ function RootGate() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <OfflineStatus uid={uid} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />

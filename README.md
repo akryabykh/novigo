@@ -63,7 +63,7 @@ npx expo start --web
 | Команда | Действие |
 |---|---|
 | `npx expo start --web` | дев-сервер (веб) |
-| `npx expo export --platform web` | production-сборка в `dist/` |
+| `node scripts/build-web.mjs` | production-сборка PWA в `dist/` |
 | `npx tsc --noEmit` | проверка типов |
 | `npx expo lint` | ESLint |
 
@@ -71,10 +71,13 @@ npx expo start --web
 
 Сборка — статический SPA (`web.output: "single"` в `app.json`).
 
-1. `npx expo export --platform web` → артефакт в `dist/`.
-2. На Vercel: **Build Command** `npx expo export --platform web`, **Output Directory** `dist`.
-3. Добавьте переменные `EXPO_PUBLIC_SUPABASE_URL` и `EXPO_PUBLIC_SUPABASE_ANON_KEY` в Project → Settings → Environment Variables.
-4. SPA-роутинг: все пути отдаются на `index.html` (Expo export это уже учитывает).
+1. До публикации офлайн-клиента выполните `supabase/migrations/0008_offline_sync.sql` в Supabase SQL Editor. Старые миграции не переписывайте.
+2. `node scripts/build-web.mjs` → артефакт в `dist/`, включая manifest и service worker.
+3. На Vercel: Build Command берётся из `vercel.json` (`node scripts/build-web.mjs`), Output Directory — `dist`. Если в настройках проекта задано собственное значение Build Command, обновите его вручную.
+4. Добавьте переменные `EXPO_PUBLIC_SUPABASE_URL` и `EXPO_PUBLIC_SUPABASE_ANON_KEY` в Project → Settings → Environment Variables.
+5. SPA-роутинг: все пути отдаются на `index.html`.
+
+На iPhone откройте сайт в Safari с интернетом, войдите в аккаунт и дождитесь загрузки целей. Через «Поделиться» → «На экран Домой» добавьте Novigo. Откройте установленную иконку с интернетом хотя бы один раз, затем проверьте режим полёта: добавьте тестовую цель/задачу, закройте приложение, откройте снова и верните сеть. Баннер показывает число ожидающих правок и конфликт между устройствами. Фоновая отправка при полностью закрытом Safari не гарантируется: очередь отправляется при следующем открытии или возвращении связи.
 
 ## iOS / Android (позже)
 

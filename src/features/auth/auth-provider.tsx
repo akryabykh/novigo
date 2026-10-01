@@ -5,6 +5,7 @@
 // OFF in Supabase → Authentication → Providers → Email.
 // ============================================================
 import type { Session, User } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { createProfile, getProfile, supabase } from '../../core/data';
@@ -35,19 +36,33 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
 }
 const SLOW = 'Сервер долго не отвечает — попробуйте ещё раз.';
 
+async function cachedOfflineSession(): Promise<Session | null> {
+  if (typeof navigator === 'undefined' || navigator.onLine !== false) return null;
+  try {
+    const raw = await AsyncStorage.getItem('sb-novigo-auth');
+    const session = raw ? JSON.parse(raw) as Session : null;
+    return session?.user?.id ? session : null;
+  } catch { return null; }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
     withTimeout(supabase.auth.getSession(), 15000, SLOW)
-      .then(({ data }) => setSession(data.session))
-      .catch(() => {})
+      .then(async ({ data }) => setSession(data.session ?? await cachedOfflineSession()))
+      .catch(async () => setSession(await cachedOfflineSession()))
       .finally(() => setInitializing(false));
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
     });
-    return () => sub.subscription.unsubscribe();
+    const onReconnect = () => { void supabase.auth.getSession().then(({ data }) => { if (data.session) setSession(data.session); }).catch(() => {}); };
+    if (typeof window !== 'undefined') window.addEventListener('online', onReconnect);
+    return () => {
+      sub.subscription.unsubscribe();
+      if (typeof window !== 'undefined') window.removeEventListener('online', onReconnect);
+    };
   }, []);
 
   const signInWithPassword = async (email: string, password: string) => {
