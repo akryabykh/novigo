@@ -2,7 +2,8 @@
 // day strip, the period navigator and the rings selector. The screen supplies
 // its own content (goal/task list or the editor) as children. This is a
 // composition wrapper, NOT a universal screen — each tab keeps its own logic.
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { useMemo } from 'react';
+import { PanResponder, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { Timeframe } from '../../core/domain';
@@ -43,16 +44,24 @@ export function CalendarScaffold({
   children: React.ReactNode;
 }) {
   const c = useColors();
-  const { today, scope, refDate, setRefDate } = cal;
+  const { today, scope, refDate, setRefDate, stepPeriod } = cal;
+  const swipe = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, gesture) =>
+      !navigationDisabled && Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
+    onPanResponderRelease: (_, gesture) => {
+      if (navigationDisabled || Math.abs(gesture.dx) < 64 || Math.abs(gesture.dx) <= Math.abs(gesture.dy) * 1.5) return;
+      stepPeriod(gesture.dx < 0 ? 1 : -1);
+    },
+  }), [navigationDisabled, stepPeriod]);
 
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
-        contentContainerStyle={{ alignItems: 'center', paddingBottom: spacing['2xl'] }}
+        contentContainerStyle={{ alignItems: 'center', flexGrow: 1, paddingBottom: spacing['2xl'] }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={c.accent} />}>
-        <View style={{ width: '100%', maxWidth: 560, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
+        <View {...swipe.panHandlers} style={{ width: '100%', maxWidth: 560, flexGrow: 1, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
           {isError ? (
             <EmptyState
               emoji="⚠️"

@@ -1,5 +1,5 @@
 // Calendar navigation state shared by the Goals and Tasks screens.
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { Timeframe } from '../../core/domain';
 import { addDays, endOfWeek, enumerateDates, startOfWeek, todayISO } from '../../core/logic';
@@ -26,10 +26,10 @@ export function useCalendar(): Calendar {
     [refDate],
   );
 
-  const stepPeriod = (dir: 1 | -1) =>
-    setRefDate(
-      scope === 'day' ? addDays(refDate, dir) : scope === 'week' ? addDays(refDate, dir * 7) : addMonths(refDate, dir),
-    );
+  const stepPeriod = useCallback((dir: 1 | -1) =>
+    setRefDate((current) =>
+      scope === 'day' ? addDays(current, dir) : scope === 'week' ? addDays(current, dir * 7) : addMonths(current, dir),
+    ), [scope]);
 
   const goToday = () => setRefDate(today);
 
