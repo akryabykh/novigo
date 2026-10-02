@@ -1,4 +1,5 @@
--- Run once in the production SQL Editor before publishing the Statistics tab.
+-- Run in the production SQL Editor before publishing the Statistics tab.
+-- Safe to re-run if an earlier attempt stopped partway through.
 -- Results are immutable: later task edits/deletes cannot lower an earned record.
 create table if not exists public.medal_config (
   id boolean primary key default true check (id),
@@ -41,6 +42,7 @@ create table if not exists public.medal_task_archive (
 );
 create index if not exists medal_task_archive_user_idx on public.medal_task_archive(user_id, timeframe);
 alter table public.medal_task_archive enable row level security;
+drop policy if exists "medal_task_archive_select_own" on public.medal_task_archive;
 create policy "medal_task_archive_select_own" on public.medal_task_archive for select
   using (auth.uid() = user_id);
 revoke all on public.medal_task_archive from public, anon, authenticated;
@@ -84,6 +86,7 @@ create table if not exists public.medal_period_results (
 );
 create index if not exists medal_period_results_user_end_idx on public.medal_period_results(user_id, timeframe, period_end);
 alter table public.medal_period_results enable row level security;
+drop policy if exists "medal_period_results_select_own" on public.medal_period_results;
 create policy "medal_period_results_select_own" on public.medal_period_results for select
   using (auth.uid() = user_id);
 revoke all on public.medal_period_results from public, anon, authenticated;
