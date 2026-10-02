@@ -86,7 +86,7 @@ describe('editor safety', () => {
     expect(stepPeriod).toHaveBeenCalledTimes(2);
     await act(async () => { tree.unmount(); });
   });
-  test('scrolling the day strip selects a calendar day even in month view', async () => {
+  test('scrolling the day strip keeps the selected period until a day is pressed', async () => {
     const setRefDate = jest.fn();
     const noop = jest.fn();
     const cal = { today: '2026-09-26', refDate: '2026-09-26', scope: 'month' as const,
@@ -95,7 +95,9 @@ describe('editor safety', () => {
     await act(async () => { tree = create(<CalendarScaffold cal={cal} rings={{ day: 0, week: 0, month: 0 }}
       daysWithProgress={new Set()} onSelectScope={noop} isError={false} refetch={noop} isRefetching={false}><></></CalendarScaffold>); });
     const wheel = tree.root.findAllByType('ScrollView').find((node: any) => node.props.horizontal);
-    await act(async () => { wheel.props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 17 * 54 } } }); });
+    await act(async () => { wheel.props.onScroll({ nativeEvent: { contentOffset: { x: 32 * 54 } } }); });
+    expect(setRefDate).not.toHaveBeenCalled();
+    await act(async () => { tree.root.findAllByType('Pressable')[32].props.onPress(); });
     expect(setRefDate).toHaveBeenCalledWith('2026-09-28');
     await act(async () => { tree.unmount(); });
   });
