@@ -2,7 +2,7 @@
 // day strip, the period navigator and the rings selector. The screen supplies
 // its own content (goal/task list or the editor) as children. This is a
 // composition wrapper, NOT a universal screen — each tab keeps its own logic.
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { PanResponder, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -46,6 +46,12 @@ export function CalendarScaffold({
 }) {
   const c = useColors();
   const { today, scope, refDate, setRefDate, stepPeriod } = cal;
+  const [wheelReset, setWheelReset] = useState(0);
+  const showToday = scope !== 'day' || refDate !== today;
+  const goToday = () => {
+    cal.goToday();
+    setWheelReset((count) => count + 1);
+  };
   const swipe = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_, gesture) =>
       !navigationDisabled && Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.5,
@@ -73,7 +79,7 @@ export function CalendarScaffold({
             />
           ) : (
             <>
-              <DayWheel refDate={refDate} today={today} onSelect={setRefDate}
+              <DayWheel key={wheelReset} refDate={refDate} today={today} onSelect={setRefDate}
                 daysWithProgress={daysWithProgress} disabled={navigationDisabled} />
               <View {...swipe.panHandlers} style={{ gap: spacing.lg, flexGrow: 1 }}>
 
@@ -150,13 +156,12 @@ export function CalendarScaffold({
 
               {children}
 
-              {refDate !== today ? (
+              <View style={{ height: 32, marginTop: 'auto', alignItems: 'center' }}>
+              {showToday ? (
                 <Pressable
                   disabled={navigationDisabled}
-                  onPress={cal.goToday}
+                  onPress={goToday}
                   style={{
-                    alignSelf: 'center',
-                    marginTop: 'auto',
                     paddingHorizontal: spacing.lg,
                     height: 32,
                     borderRadius: radius.md,
@@ -167,6 +172,7 @@ export function CalendarScaffold({
                   <Text variant="label" tone="accent">Сегодня</Text>
                 </Pressable>
               ) : null}
+              </View>
               </View>
             </>
           )}

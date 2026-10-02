@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
 
 import { addDays, weekdayMon0 } from '../../core/logic';
@@ -8,7 +8,10 @@ import { Text } from '../../ui/components';
 import { WEEKDAYS_SHORT, dayNum } from './format';
 
 const ITEM_WIDTH = 54;
-const CENTER = 15;
+const COUNT = 61;
+const CENTER = 30;
+const EDGE = 8;
+const SHIFT = 20;
 
 export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled }: {
   refDate: string;
@@ -20,18 +23,44 @@ export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled 
   const c = useColors();
   const ref = useRef<ScrollView>(null);
   const [width, setWidth] = useState(0);
+  const [windowStart, setWindowStart] = useState(() => addDays(refDate, -CENTER));
+  const offset = useRef(CENTER * ITEM_WIDTH);
+  const pendingOffset = useRef<number | null>(null);
   const lastWheel = useRef(0);
-  const scrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const days = Array.from({ length: 31 }, (_, index) => addDays(refDate, index - CENTER));
+  const previousSelected = useRef(refDate);
+  const days = Array.from({ length: COUNT }, (_, index) => addDays(windowStart, index));
 
-  const selectOffset = (offset: number) => {
-    const delta = Math.round(offset / ITEM_WIDTH) - CENTER;
-    if (delta) onSelect(addDays(refDate, delta));
+  // Extend the visible dates without changing the selected calendar period.
+  const handleScroll = (x: number) => {
+    offset.current = x;
+    if (disabled || pendingOffset.current !== null) return;
+    if (x < EDGE * ITEM_WIDTH) {
+      pendingOffset.current = x + SHIFT * ITEM_WIDTH;
+      setWindowStart((start) => addDays(start, -SHIFT));
+    } else if (x > (COUNT - EDGE - 1) * ITEM_WIDTH) {
+      pendingOffset.current = x - SHIFT * ITEM_WIDTH;
+      setWindowStart((start) => addDays(start, SHIFT));
+    }
   };
 
-  useEffect(() => () => {
-    if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
-  }, []);
+  useLayoutEffect(() => {
+    if (pendingOffset.current === null) return;
+    const next = pendingOffset.current;
+    pendingOffset.current = null;
+    offset.current = next;
+    ref.current?.scrollTo?.({ x: next, animated: false });
+  }, [windowStart]);
+
+  useEffect(() => {
+    if (previousSelected.current === refDate) return;
+    previousSelected.current = refDate;
+    pendingOffset.current = CENTER * ITEM_WIDTH;
+    setWindowStart(addDays(refDate, -CENTER));
+  }, [refDate]);
+
+  useEffect(() => {
+    if (width) ref.current?.scrollTo?.({ x: offset.current, animated: false });
+  }, [width]);
 
   useEffect(() => {
     if (Platform?.OS !== 'web') return;
@@ -41,18 +70,15 @@ export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled 
       if (disabled || Math.abs(event.deltaY) < Math.abs(event.deltaX)) return;
       event.preventDefault();
       const now = Date.now();
-      if (now - lastWheel.current < 120) return;
+      if (now - lastWheel.current < 100) return;
       lastWheel.current = now;
-      onSelect(addDays(refDate, event.deltaY > 0 ? 1 : -1));
+      const next = offset.current + (event.deltaY > 0 ? ITEM_WIDTH : -ITEM_WIDTH);
+      offset.current = next;
+      ref.current?.scrollTo?.({ x: next, animated: false });
     };
     node.addEventListener('wheel', onWheel, { passive: false });
     return () => node.removeEventListener('wheel', onWheel);
-  }, [disabled, onSelect, refDate, width]);
-
-  useEffect(() => {
-    if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
-    if (width) ref.current?.scrollTo?.({ x: CENTER * ITEM_WIDTH, animated: false });
-  }, [refDate, width]);
+  }, [disabled, width]);
 
   return (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ paddingTop: spacing.md }}>
@@ -64,27 +90,8 @@ export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled 
         snapToInterval={ITEM_WIDTH}
         decelerationRate="fast"
         contentContainerStyle={{ paddingHorizontal: Math.max(0, (width - ITEM_WIDTH) / 2) }}
-        onScroll={Platform?.OS === 'web' ? (event) => {
-          const offset = event.nativeEvent.contentOffset.x;
-          if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
-          scrollEndTimer.current = setTimeout(() => selectOffset(offset), 130);
-        } : undefined}
-        scrollEventThrottle={16}
-        onScrollEndDrag={(event) => {
-          if (Platform?.OS === 'web') return;
-          const offset = event.nativeEvent.contentOffset.x;
-          if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
-          scrollEndTimer.current = setTimeout(() => selectOffset(offset), 130);
-        }}
-        onMomentumScrollBegin={() => {
-          if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
-        }}
-        onMomentumScrollEnd={(event) => {
-          if (Platform?.OS !== 'web') {
-            if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current);
-            selectOffset(event.nativeEvent.contentOffset.x);
-          }
-        }}>
+        onScroll={(event) => handleScroll(event.nativeEvent.contentOffset.x)}
+        scrollEventThrottle={16}>
         {days.map((date) => {
           const active = date === refDate;
           const isToday = date === today;
