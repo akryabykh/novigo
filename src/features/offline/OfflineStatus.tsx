@@ -1,13 +1,14 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Platform, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { qk } from '../../core/query';
+import { finalizeMedalPeriods } from '../../core/data/medals-repo';
 import { Button, Text } from '../../ui/components';
 import { spacing } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 import { confirmAction } from '../../ui/confirm';
-import { getOfflineStatus, subscribeOffline } from './store';
+import { getOfflineStatus, readOffline, subscribeOffline } from './store';
 import { resolveOfflineConflict, synchronize } from './sync';
 
 export function OfflineStatus({ uid }: { uid: string | undefined }) {
@@ -16,11 +17,27 @@ export function OfflineStatus({ uid }: { uid: string | undefined }) {
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine !== false);
   const [resolving, setResolving] = useState(false);
   const [resolutionError, setResolutionError] = useState(false);
+  const syncing = useRef(false);
   const state = useSyncExternalStore(subscribeOffline, () => getOfflineStatus(uid ?? 'anon'), () => getOfflineStatus(uid ?? 'anon'));
 
   useEffect(() => {
     if (!uid || Platform.OS !== 'web') return;
-    const trySync = () => { setOnline(navigator.onLine !== false); void synchronize(uid, qc); };
+    const trySync = () => {
+      setOnline(navigator.onLine !== false);
+      if (navigator.onLine === false || syncing.current) return;
+      syncing.current = true;
+      void (async () => {
+        try {
+          await synchronize(uid, qc);
+          const saved = await readOffline(uid);
+          if (saved.operations.length === 0 && !saved.conflictId && navigator.onLine !== false) {
+            const count = await finalizeMedalPeriods(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+            if (count) void qc.invalidateQueries({ queryKey: qk.medals(uid) });
+          }
+        } catch { /* Medal sync is secondary; task saving has its own status. */ }
+        finally { syncing.current = false; }
+      })();
+    };
     const onReconnect = () => { trySync(); if (navigator.onLine !== false) void qc.invalidateQueries({ queryKey: qk.workspace(uid) }); };
     const onVisibility = () => { if (document.visibilityState === 'visible') onReconnect(); };
     trySync();

@@ -43,8 +43,9 @@ describe('editor safety', () => {
     let tree: any;
     await act(async () => { tree = create(<CalendarScaffold cal={cal} rings={{ day: 0, week: 0, month: 0 }} daysWithProgress={new Set()} onSelectScope={noop} navigationDisabled isError={false} refetch={noop} isRefetching={false} saveError="Deletion failed"><></></CalendarScaffold>); });
     const actions = tree.root.findAllByType('Pressable');
-    expect(actions.length).toBe(8);
-    expect(actions.filter((button: any) => button.props.disabled === true)).toHaveLength(7);
+    expect(actions.length).toBeGreaterThan(30);
+    expect(actions.filter((button: any) => button.props.disabled === true)).toHaveLength(actions.length - 1);
+    expect(tree.root.findAllByType('ScrollView').find((node: any) => node.props.horizontal)?.props.scrollEnabled).toBe(false);
     expect(tree.root.findAllByType('Text').some((node: any) => node.props.children === 'Deletion failed')).toBe(true);
     await act(async () => { tree.unmount(); });
   });
@@ -71,7 +72,7 @@ describe('editor safety', () => {
       onSelectScope: noop, isError: false, refetch: noop, isRefetching: false };
     let tree: any;
     await act(async () => { tree = create(<CalendarScaffold {...props}><></></CalendarScaffold>); });
-    const handlers = tree.root.findAllByType('View')[0].props;
+    const handlers = tree.root.findAllByType('View').find((node: any) => node.props.onMoveShouldSetPanResponderCapture)?.props;
     expect(handlers.onMoveShouldSetPanResponderCapture(null, { dx: 10, dy: 0 })).toBe(false);
     expect(handlers.onMoveShouldSetPanResponderCapture(null, { dx: 70, dy: 100 })).toBe(false);
     expect(handlers.onMoveShouldSetPanResponderCapture(null, { dx: -70, dy: 5 })).toBe(true);
@@ -79,10 +80,23 @@ describe('editor safety', () => {
     await act(async () => { handlers.onPanResponderRelease(null, { dx: 75, dy: 5 }); });
     expect(stepPeriod.mock.calls).toEqual([[1], [-1]]);
     await act(async () => { tree.update(<CalendarScaffold {...props} navigationDisabled><></></CalendarScaffold>); });
-    const disabledHandlers = tree.root.findAllByType('View')[0].props;
+    const disabledHandlers = tree.root.findAllByType('View').find((node: any) => node.props.onMoveShouldSetPanResponderCapture)?.props;
     expect(disabledHandlers.onMoveShouldSetPanResponderCapture(null, { dx: -70, dy: 5 })).toBe(false);
     await act(async () => { disabledHandlers.onPanResponderRelease(null, { dx: -70, dy: 5 }); });
     expect(stepPeriod).toHaveBeenCalledTimes(2);
+    await act(async () => { tree.unmount(); });
+  });
+  test('scrolling the day strip selects a calendar day even in month view', async () => {
+    const setRefDate = jest.fn();
+    const noop = jest.fn();
+    const cal = { today: '2026-09-26', refDate: '2026-09-26', scope: 'month' as const,
+      setScope: noop, setRefDate, weekDays: ['2026-09-26'], stepPeriod: noop, goToday: noop };
+    let tree: any;
+    await act(async () => { tree = create(<CalendarScaffold cal={cal} rings={{ day: 0, week: 0, month: 0 }}
+      daysWithProgress={new Set()} onSelectScope={noop} isError={false} refetch={noop} isRefetching={false}><></></CalendarScaffold>); });
+    const wheel = tree.root.findAllByType('ScrollView').find((node: any) => node.props.horizontal);
+    await act(async () => { wheel.props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 17 * 54 } } }); });
+    expect(setRefDate).toHaveBeenCalledWith('2026-09-28');
     await act(async () => { tree.unmount(); });
   });
   test('rejects nonexistent dates, accepts leap dates and decimal comma', () => {
