@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 
-import { ListIcon, TargetIcon, UserIcon } from '../../../ui/components';
+import { ChartIcon, ListIcon, TargetIcon, UserIcon } from '../../../ui/components';
 import { useFeaturePreferences } from '../../../features/preferences/FeaturePreferences';
 import { typography } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
@@ -30,6 +30,14 @@ export default function TabsLayout() {
         options={{
           title: 'Задачи',
           tabBarIcon: ({ color }) => <ListIcon color={color as string} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="statistics"
+        options={{
+          title: 'Статистика',
+          href: preferences.showStatistics ? undefined : null,
+          tabBarIcon: ({ color }) => <ChartIcon color={color as string} size={24} />,
         }}
       />
       <Tabs.Screen

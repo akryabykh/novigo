@@ -11,7 +11,8 @@ import { type Rings } from '../../core/logic';
 import { EmptyState, ProgressRing, Text } from '../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
-import { WEEKDAYS_SHORT, dayNum, periodTitle } from './format';
+import { periodTitle } from './format';
+import { DayWheel } from './DayWheel';
 import type { Calendar } from './useCalendar';
 
 const ORDER: Timeframe[] = ['day', 'week', 'month'];
@@ -61,7 +62,7 @@ export function CalendarScaffold({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={c.accent} />}>
-        <View {...swipe.panHandlers} style={{ width: '100%', maxWidth: 560, flexGrow: 1, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
+        <View style={{ width: '100%', maxWidth: 560, flexGrow: 1, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
           {isError ? (
             <EmptyState
               emoji="⚠️"
@@ -72,45 +73,9 @@ export function CalendarScaffold({
             />
           ) : (
             <>
-              {/* day strip */}
-              <View style={{ flexDirection: 'row', gap: spacing.xs, paddingTop: spacing.md }}>
-                {cal.weekDays.map((d, i) => {
-                  const active = d === refDate;
-                  const isToday = d === today;
-                  const hasProgress = daysWithProgress.has(d);
-                  return (
-                    <Pressable
-                      disabled={navigationDisabled}
-                      key={d}
-                      onPress={() => setRefDate(d)}
-                      style={{
-                        flex: 1,
-                        alignItems: 'center',
-                        gap: 3,
-                        paddingVertical: spacing.sm,
-                        borderRadius: radius.md,
-                        backgroundColor: active ? c.accent : 'transparent',
-                        borderWidth: !active && isToday ? 1.5 : 0,
-                        borderColor: c.accent,
-                      }}>
-                      <Text variant="caption" style={{ color: active ? '#fff' : c.textFaint }}>
-                        {WEEKDAYS_SHORT[i]}
-                      </Text>
-                      <Text variant="label" style={{ color: active ? '#fff' : isToday ? c.accent : c.text }}>
-                        {dayNum(d)}
-                      </Text>
-                      <View
-                        style={{
-                          width: 5,
-                          height: 5,
-                          borderRadius: 3,
-                          backgroundColor: hasProgress ? (active ? '#fff' : c.accent) : 'transparent',
-                        }}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <DayWheel refDate={refDate} today={today} onSelect={setRefDate}
+                daysWithProgress={daysWithProgress} disabled={navigationDisabled} />
+              <View {...swipe.panHandlers} style={{ gap: spacing.lg, flexGrow: 1 }}>
 
               {/* period navigator */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -202,6 +167,7 @@ export function CalendarScaffold({
                   <Text variant="label" tone="accent">Сегодня</Text>
                 </Pressable>
               ) : null}
+              </View>
             </>
           )}
         </View>

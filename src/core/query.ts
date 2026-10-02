@@ -21,4 +21,5 @@ export const qk = {
   /** active session + its goals + logs */
   workspace: (uid: string) => ['workspace', uid] as const,
   achievements: (uid: string) => ['achievements', uid] as const,
+  medals: (uid: string) => ['medals', uid] as const,
 };

@@ -3,12 +3,12 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 import { useAuth } from '../auth/auth-provider';
 
-type Preferences = { showGoals: boolean };
-const DEFAULTS: Preferences = { showGoals: false };
+type Preferences = { showGoals: boolean; showStatistics: boolean };
+const DEFAULTS: Preferences = { showGoals: false, showStatistics: false };
 const Context = createContext<{
   preferences: Preferences;
   ready: boolean;
-  save: (next: Preferences) => Promise<void>;
+  save: (next: Partial<Preferences>) => Promise<void>;
 } | null>(null);
 
 export function FeaturePreferencesProvider({ children }: { children: ReactNode }) {
@@ -25,16 +25,20 @@ export function FeaturePreferencesProvider({ children }: { children: ReactNode }
       .then((raw) => {
         if (!active) return;
         const stored = raw ? JSON.parse(raw) as Partial<Preferences> : null;
-        setLoaded({ uid, preferences: { showGoals: stored?.showGoals === true } });
+        setLoaded({ uid, preferences: {
+          showGoals: stored?.showGoals === true,
+          showStatistics: stored?.showStatistics === true,
+        } });
       })
       .catch(() => { if (active) setLoaded({ uid, preferences: DEFAULTS }); });
     return () => { active = false; };
   }, [uid]);
 
-  const save = async (next: Preferences) => {
+  const save = async (next: Partial<Preferences>) => {
     if (!uid) throw new Error('Войди в аккаунт');
-    await AsyncStorage.setItem(`novigo.preferences.${uid}`, JSON.stringify(next));
-    setLoaded({ uid, preferences: next });
+    const merged = { ...preferences, ...next };
+    await AsyncStorage.setItem(`novigo.preferences.${uid}`, JSON.stringify(merged));
+    setLoaded({ uid, preferences: merged });
   };
 
   return <Context.Provider value={{ preferences, ready, save }}>{children}</Context.Provider>;

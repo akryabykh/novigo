@@ -32,14 +32,17 @@ export default function ProfileScreen() {
   const { preferences, ready: preferencesReady, save: savePreferences } = useFeaturePreferences();
   const [showGoalsOverride, setShowGoalsOverride] = useState<boolean | null>(null);
   const showGoalsDraft = showGoalsOverride ?? preferences.showGoals;
+  const [showStatisticsOverride, setShowStatisticsOverride] = useState<boolean | null>(null);
+  const showStatisticsDraft = showStatisticsOverride ?? preferences.showStatistics;
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [preferencesMessage, setPreferencesMessage] = useState<string | null>(null);
   const saveDisplay = async () => {
     setPreferencesSaving(true);
     setPreferencesMessage(null);
     try {
-      await savePreferences({ showGoals: showGoalsDraft });
+      await savePreferences({ showGoals: showGoalsDraft, showStatistics: showStatisticsDraft });
       setShowGoalsOverride(null);
+      setShowStatisticsOverride(null);
       setPreferencesMessage('Сохранено');
     } catch { setPreferencesMessage('Не удалось сохранить настройки'); }
     finally { setPreferencesSaving(false); }
@@ -187,6 +190,10 @@ export default function ProfileScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <Text variant="label" style={{ flex: 1 }}>Показывать «Цели» в нижней панели</Text>
             <Switch value={showGoalsDraft} onValueChange={setShowGoalsOverride} disabled={!preferencesReady || preferencesSaving} />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <Text variant="label" style={{ flex: 1 }}>Показывать «Статистику» в нижней панели</Text>
+            <Switch value={showStatisticsDraft} onValueChange={setShowStatisticsOverride} disabled={!preferencesReady || preferencesSaving} />
           </View>
           {preferencesMessage ? <Text variant="caption">{preferencesMessage}</Text> : null}
           <Button title="Сохранить настройки" size="md" onPress={saveDisplay} loading={preferencesSaving} disabled={!preferencesReady} />
