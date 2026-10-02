@@ -63,6 +63,24 @@ describe('editor safety', () => {
     expect(labels.indexOf('Сегодня')).toBeGreaterThan(labels.indexOf('Содержимое'));
     await act(async () => { tree.unmount(); });
   });
+  test.each(['week', 'month'] as const)('today shortcut stays available in %s view and recenters the day strip', async (scope) => {
+    const noop = jest.fn();
+    const goToday = jest.fn();
+    const cal = { today: '2026-09-26', refDate: '2026-09-26', scope,
+      setScope: noop, setRefDate: noop, weekDays: ['2026-09-26'], stepPeriod: noop, goToday };
+    let tree: any;
+    await act(async () => { tree = create(<CalendarScaffold cal={cal} rings={{ day: 0, week: 0, month: 0 }}
+      daysWithProgress={new Set()} onSelectScope={noop} isError={false} refetch={noop} isRefetching={false}><></></CalendarScaffold>); });
+    const previousWheel = tree.root.findAllByType('ScrollView').find((node: any) => node.props.horizontal);
+    const todayButton = tree.root.findAllByType('Pressable').find((node: any) =>
+      node.findAllByType('Text').some((text: any) => text.props.children === 'Сегодня'));
+    expect(todayButton).toBeDefined();
+    await act(async () => { todayButton.props.onPress(); });
+    expect(goToday).toHaveBeenCalledTimes(1);
+    const nextWheel = tree.root.findAllByType('ScrollView').find((node: any) => node.props.horizontal);
+    expect(nextWheel).not.toBe(previousWheel);
+    await act(async () => { tree.unmount(); });
+  });
   test('horizontal swipes step one period without capturing vertical scrolling or disabled navigation', async () => {
     const stepPeriod = jest.fn();
     const noop = jest.fn();
