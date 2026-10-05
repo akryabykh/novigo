@@ -32,3 +32,21 @@ test('month task menu offers edit, delete, next period, day and week with a pick
     startDate: '2026-10-04', endDate: '2026-10-04' });
   await act(async () => { tree.unmount(); });
 });
+
+test('closed period offers only copy and delete without changing the original task', async () => {
+  const task = mkGoal({ kind: 'task', timeframe: 'week' });
+  const onCopy = jest.fn();
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<TaskActions task={task} refDate="2026-09-28" locked
+    saving={false} error={null} onClose={jest.fn()} onEdit={jest.fn()} onDelete={jest.fn()}
+    onMove={jest.fn()} onCopy={onCopy} />); });
+  const titles = tree.root.findAllByType(Button).map((node) => node.props.title);
+  expect(titles).toContain('Скопировать на новый период');
+  expect(titles).toContain('Удалить задачу');
+  expect(titles).not.toContain('Редактировать задачу');
+  expect(titles).not.toContain('Перенести задачу');
+  await act(async () => { tree.root.findAllByType(Button).find((node) =>
+    node.props.title === 'Скопировать на новый период')!.props.onPress(); });
+  expect(onCopy).toHaveBeenCalledTimes(1);
+  await act(async () => { tree.unmount(); });
+});

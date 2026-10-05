@@ -119,9 +119,7 @@ export function isActiveOn(goal: Goal, date: string): boolean {
 export function overlaps(goal: Goal, start: string, end: string): boolean {
   return goal.startDate <= end && (goal.endDate == null || goal.endDate >= start);
 }
-// ---------- ЛАГ РЕДАКТИРОВАНИЯ (24 часа после конца периода) ----------
-/** Сколько времени период остаётся редактируемым после своего конца. */
-export const EDIT_GRACE_MS = 24 * 60 * 60 * 1000;
+// ---------- ЗАКРЫТИЕ ПЕРИОДА В ЛОКАЛЬНУЮ ПОЛНОЧЬ ----------
 
 /** Полночь (локальная, ms) указанной даты. */
 function localMidnightMs(date: string): number {
@@ -131,16 +129,15 @@ function localMidnightMs(date: string): number {
 
 /**
  * Момент (ms), до которого период (день/неделя/месяц) вокруг даты refDate ещё
- * можно править. Период закрывается в полночь ПОСЛЕ своего последнего дня, дальше
- * даётся 24 часа лага — затем правки запрещены. Прошедший день/неделя/месяц,
- * который ты не успел закрыть, через сутки становится read-only.
+ * можно править. Период закрывается в локальную полночь после своего
+ * последнего дня, без дополнительного времени на исправления.
  */
 export function periodEditableUntil(tf: Timeframe, refDate: string): number {
   const { end } = periodRange(tf, refDate);
-  return localMidnightMs(addDays(end, 1)) + EDIT_GRACE_MS;
+  return localMidnightMs(addDays(end, 1));
 }
 
-/** В пределах ли 24-часового лага после конца периода (можно ли ещё править). */
+/** Открыт ли период для отметок. */
 export function isPeriodEditable(tf: Timeframe, refDate: string, now: number = Date.now()): boolean {
   return now < periodEditableUntil(tf, refDate);
 }
@@ -149,8 +146,7 @@ export function isPeriodEditable(tf: Timeframe, refDate: string, now: number = D
  * Можно ли писать прогресс по цели на дату date. Запрещено, если:
  *   • дата в будущем (date > today);
  *   • вне периода действия цели (date < startDate или > endDate);
- *   • период дня/недели/месяца уже закрыт — прошло больше 24 часов после его
- *     конца (лаг редактирования, см. isPeriodEditable).
+ *   • период дня/недели/месяца уже закрыт в полночь после его конца.
  * Такие дни/недели/месяцы показываются read-only (см. GoalRow/TaskRow).
  */
 export function canLogOn(

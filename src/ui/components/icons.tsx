@@ -95,10 +95,11 @@ export function GearIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconPro
     <Svg {...base(size)} fill="none">
       <Circle cx="12" cy="12" r="3.2" stroke={color} strokeWidth={strokeWidth} />
       <Path
-        d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.1 5.1l2.1 2.1M16.8 16.8l2.1 2.1M18.9 5.1l-2.1 2.1M7.2 16.8l-2.1 2.1"
+        d="M10.3 2.5h3.4l.5 2.1c.5.2 1 .4 1.5.7l1.9-1.1 2.4 2.4-1.1 1.9c.3.5.5 1 .7 1.5l2.1.5v3.4l-2.1.5c-.2.5-.4 1-.7 1.5l1.1 1.9-2.4 2.4-1.9-1.1c-.5.3-1 .5-1.5.7l-.5 2.1h-3.4l-.5-2.1c-.5-.2-1-.4-1.5-.7l-1.9 1.1-2.4-2.4 1.1-1.9c-.3-.5-.5-1-.7-1.5l-2.1-.5v-3.4l2.1-.5c.2-.5.4-1 .7-1.5l-1.1-1.9 2.4-2.4 1.9 1.1c.5-.3 1-.5 1.5-.7z"
         stroke={color}
         strokeWidth={strokeWidth}
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </Svg>
   );

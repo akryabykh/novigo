@@ -1,6 +1,7 @@
 // Pure logic behind TaskRow — extracted so it's unit-testable without rendering.
 import type { DailyLog, Goal, Timeframe } from '../../core/domain';
-import { goalCurrent, goalMaxOnDate, goalsForScope, isActiveOn, periodRange } from '../../core/logic';
+import type { SaveHorizonInput } from '../../core/data';
+import { equalWeights, goalCurrent, goalMaxOnDate, goalsForScope, isActiveOn, periodRange } from '../../core/logic';
 import type { LogInput } from '../calendar/log-cache';
 
 export function isTaskDone(task: Goal, logs: DailyLog[], date: string): boolean {
@@ -26,6 +27,24 @@ export function taskLogChanges(task: Goal, logs: DailyLog[], date: string, done?
   return logs
     .filter((l) => l.goalId === task.id && l.value > 0 && l.date >= start && l.date <= end && isActiveOn(task, l.date))
     .map((l) => ({ goalId: task.id, date: l.date, value: 0 }));
+}
+
+/** Copy a closed task into the current period without moving it or its logs. */
+export function copyTaskIntoPeriod(task: Goal, allTasks: Goal[], date: string): SaveHorizonInput {
+  const { start, end } = periodRange(task.timeframe, date);
+  const siblings = goalsForScope(allTasks, task.timeframe, date);
+  const weights = equalWeights(siblings.length + 1);
+  return {
+    updates: siblings.map((item, index) => ({
+      id: item.id, title: item.title, target: item.target,
+      weight: weights[index], endDate: item.endDate,
+    })),
+    creates: [{
+      kind: 'task', title: task.title, timeframe: task.timeframe,
+      target: 1, weight: weights[siblings.length], startDate: start, endDate: end,
+    }],
+    deletes: [],
+  };
 }
 
 /**

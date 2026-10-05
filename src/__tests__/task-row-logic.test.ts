@@ -1,5 +1,5 @@
 import { describe, expect, jest, test } from '@jest/globals';
-import { handleActionPress, isTaskDone, openTaskCounts, taskLogChanges, taskToggleValue } from '../features/goals/task-row-logic';
+import { copyTaskIntoPeriod, handleActionPress, isTaskDone, openTaskCounts, taskLogChanges, taskToggleValue } from '../features/goals/task-row-logic';
 import { log, mkGoal } from './fixtures';
 import { applyLog } from '../features/calendar/log-cache';
 
@@ -20,6 +20,14 @@ describe('unfinished task counts', () => {
     expect(openTaskCounts(tasks, logs, '2024-06-12')).toEqual({ day: 0, week: 0, month: 0 });
     expect(openTaskCounts(tasks, logs, '2024-06-13')).toEqual({ day: 1, week: 0, month: 0 });
     expect(openTaskCounts(tasks, logs, '2024-06-17')).toEqual({ day: 1, week: 1, month: 0 });
+  });
+
+  test('a completed week and month reappear unchecked in their next periods', () => {
+    const weekly = mkGoal({ id: 'weekly', kind: 'task', timeframe: 'week', startDate: '2026-09-28', endDate: null });
+    const monthly = mkGoal({ id: 'monthly', kind: 'task', timeframe: 'month', startDate: '2026-09-01', endDate: null });
+    const logs = [log('weekly', '2026-10-04', 1), log('monthly', '2026-09-30', 1)];
+    expect(openTaskCounts([weekly, monthly], logs, '2026-10-05')).toEqual({ day: 0, week: 1, month: 1 });
+    expect(taskLogChanges(weekly, logs, '2026-10-05')).toEqual([log('weekly', '2026-10-05', 1)]);
   });
 });
 
@@ -45,6 +53,16 @@ describe('task toggle value', () => {
 });
 
 describe('task period changes', () => {
+  test('copying a closed weekly task creates a separate unchecked task this week', () => {
+    const source = mkGoal({ id: 'old', kind: 'task', timeframe: 'week', startDate: '2026-09-28', endDate: '2026-10-04' });
+    const current = mkGoal({ id: 'current', kind: 'task', timeframe: 'week', startDate: '2026-10-05', endDate: null });
+    const copied = copyTaskIntoPeriod(source, [source, current], '2026-10-05');
+    expect(copied.deletes).toEqual([]);
+    expect(copied.updates).toEqual([{ id: current.id, title: current.title, target: current.target, weight: 50, endDate: null }]);
+    expect(copied.creates).toEqual([{ kind: 'task', title: source.title, timeframe: 'week', target: 1,
+      weight: 50, startDate: '2026-10-05', endDate: '2026-10-11' }]);
+  });
+
   test.each(['day', 'week', 'month'] as const)('%s toggle clears only the selected period and restores completion', (timeframe) => {
     const item = { ...task, timeframe };
     const completedDate = timeframe === 'day' ? '2024-06-12' : '2024-06-10';
