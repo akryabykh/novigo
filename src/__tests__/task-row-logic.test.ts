@@ -22,12 +22,11 @@ describe('unfinished task counts', () => {
     expect(openTaskCounts(tasks, logs, '2024-06-17')).toEqual({ day: 1, week: 1, month: 0 });
   });
 
-  test('a completed week and month reappear unchecked in their next periods', () => {
-    const weekly = mkGoal({ id: 'weekly', kind: 'task', timeframe: 'week', startDate: '2026-09-28', endDate: null });
-    const monthly = mkGoal({ id: 'monthly', kind: 'task', timeframe: 'month', startDate: '2026-09-01', endDate: null });
+  test('completed weekly and monthly tasks do not reappear in later periods', () => {
+    const weekly = mkGoal({ id: 'weekly', kind: 'task', timeframe: 'week', startDate: '2026-09-28', endDate: '2026-10-04' });
+    const monthly = mkGoal({ id: 'monthly', kind: 'task', timeframe: 'month', startDate: '2026-09-01', endDate: '2026-09-30' });
     const logs = [log('weekly', '2026-10-04', 1), log('monthly', '2026-09-30', 1)];
-    expect(openTaskCounts([weekly, monthly], logs, '2026-10-05')).toEqual({ day: 0, week: 1, month: 1 });
-    expect(taskLogChanges(weekly, logs, '2026-10-05')).toEqual([log('weekly', '2026-10-05', 1)]);
+    expect(openTaskCounts([weekly, monthly], logs, '2026-10-05')).toEqual({ day: 0, week: 0, month: 0 });
   });
 });
 

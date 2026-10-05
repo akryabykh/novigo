@@ -14,13 +14,14 @@ jest.mock('../ui/theme-provider', () => ({ useColors: () => ({}) }));
 jest.mock('../ui/components', () => ({ Button: 'Button', Card: 'Card', Input: 'Input', ProgressBar: 'ProgressBar', Text: 'Text', TrashIcon: 'TrashIcon', ProgressRing: 'ProgressRing', EmptyState: 'EmptyState' }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const goal = (id: string): Goal => ({ id, title: id, kind: 'goal', timeframe: 'day', target: 1, weight: 100, startDate: '2026-09-26', endDate: null } as Goal);
-const recurringTaskCases: [Timeframe, string, string, string | null][] = [
-  ['week', '2026-10-08', '2026-10-05', null],
-  ['month', '2026-10-08', '2026-10-01', null],
+const singlePeriodTaskCases: [Timeframe, string, string, string][] = [
+  ['day', '2026-10-08', '2026-10-08', '2026-10-08'],
+  ['week', '2026-10-08', '2026-10-05', '2026-10-11'],
+  ['month', '2026-10-08', '2026-10-01', '2026-10-31'],
 ];
 
 describe('editor safety', () => {
-  test.each(recurringTaskCases)('%s task starts at the beginning of its period', async (scope, selected, startDate, endDate) => {
+  test.each(singlePeriodTaskCases)('%s task stays within its selected period', async (scope, selected, startDate, endDate) => {
     const onSave = jest.fn();
     let tree: any;
     await act(async () => { tree = create(<HorizonEditor kind="task" scope={scope} existing={[]}
