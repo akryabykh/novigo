@@ -6,7 +6,7 @@ import { Pressable, View } from 'react-native';
 
 import type { NewGoal } from '../../core/data';
 import type { Goal, GoalKind, Timeframe } from '../../core/domain';
-import { addDays, endOfMonth, endOfWeek, equalWeights, redistributeWeights, validateWeights } from '../../core/logic';
+import { addDays, equalWeights, periodRange, redistributeWeights, validateWeights } from '../../core/logic';
 import type { GoalUpdate } from '../queries';
 import { Button, Card, Input, ProgressBar, Text, TrashIcon } from '../../ui/components';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme';
@@ -110,22 +110,22 @@ export function HorizonEditor({
   const c = useColors();
   const color = timeframeColor[scope];
   const isTask = kind === 'task';
+  const newStart = isTask ? periodRange(scope, defaultStart).start : defaultStart;
 
   const [rows, setRows] = useState<Row[]>(() => {
     const base = existing.map(fromGoal);
-    return addNew || base.length === 0 ? equalizeRows([blankRow(defaultStart), ...base]) : base;
+    return addNew || base.length === 0 ? equalizeRows([blankRow(newStart), ...base]) : base;
   });
   const [originalIds] = useState(() => existing.map((g) => g.id));
   const [error, setError] = useState<string | null>(null);
 
-  // period end for a "one-time" goal: just this day / this week / this month
-  const oneTimeEnd = (start: string): string =>
-    scope === 'day' ? start : scope === 'week' ? endOfWeek(start) : endOfMonth(start);
+  // Daily tasks are single-day; weekly and monthly tasks recur each period.
+  const taskEnd = (start: string): string | null => scope === 'day' ? start : null;
 
   const update = (key: string, patch: Partial<Row>) =>
     setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
   // adding a goal re-splits weights equally across all goals (user can tweak after)
-  const add = () => setRows((r) => equalizeRows([blankRow(defaultStart), ...r]));
+  const add = () => setRows((r) => equalizeRows([blankRow(newStart), ...r]));
   const remove = (key: string) => setRows((r) => removeAndRedistribute(r, key));
   const distribute = () => setRows((r) => equalizeRows(r));
 
@@ -163,8 +163,7 @@ export function HorizonEditor({
     parsed.forEach((p, i) => {
       const target = isTask ? 1 : p.target;
       const weight = isTask ? taskWeights[i] : p.weight;
-      // tasks are always bound to their period (this day / week / month)
-      const endDate = isTask ? oneTimeEnd(p.row.startDate) : p.row.endDate;
+      const endDate = isTask && !p.row.id ? taskEnd(p.row.startDate) : p.row.endDate;
       if (p.row.id) updates.push({ id: p.row.id, title: p.title, target, weight, endDate });
       else
         creates.push({ kind, title: p.title, timeframe: scope, target, weight, startDate: p.row.startDate, endDate });
@@ -249,7 +248,9 @@ export function HorizonEditor({
       ) : null}
       <Text variant="caption" tone="faint">
         {isTask
-          ? `Задачи — только на ${scope === 'day' ? 'этот день' : scope === 'week' ? 'эту неделю' : 'этот месяц'} (с ${fmtDay(defaultStart)}).`
+          ? scope === 'day'
+            ? `Задача на этот день (${fmtDay(newStart)}).`
+            : `Задачи повторяются ${scope === 'week' ? 'каждую неделю' : 'каждый месяц'} (с ${fmtDay(newStart)}).`
           : `Новые цели начнутся с ${fmtDay(defaultStart)} — навсегда или до выбранной даты.`}
       </Text>
 

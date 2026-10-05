@@ -8,6 +8,7 @@ import {
   equalWeights,
   goalCurrent,
   goalsForScope,
+  isPeriodEditable,
 } from '../../../core/logic';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { CalendarScaffold } from '../../../features/calendar/CalendarScaffold';
@@ -15,7 +16,7 @@ import { useCalendar } from '../../../features/calendar/useCalendar';
 import { useOptimisticLog } from '../../../features/calendar/useOptimisticLog';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
 import { TaskActions } from '../../../features/goals/TaskActions';
-import { openTaskCounts, taskLogChanges } from '../../../features/goals/task-row-logic';
+import { copyTaskIntoPeriod, openTaskCounts, taskLogChanges } from '../../../features/goals/task-row-logic';
 import { TaskRow } from '../../../features/goals/TaskRow';
 import { useMoveTask, useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
 import { Button, EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
@@ -40,6 +41,7 @@ export default function TasksScreen() {
   const { data: ws, isLoading, isError, refetch, isRefetching } = useWorkspace(uid);
   const { logValues, saveError, clearSaveError } = useOptimisticLog(uid);
   const saveGoals = useSaveGoals(uid, 'task', scope, refDate);
+  const copyTask = useSaveGoals(uid, 'task', scope, today);
   const moveTask = useMoveTask(uid);
 
   const [editing, setEditing] = useState(false);
@@ -69,8 +71,8 @@ export default function TasksScreen() {
   const writableSelected = selectedTasks.filter(writable);
   const hasAnyTasks = tasks.length > 0;
 
-  const doneAll = () => logValues(writableSelected.flatMap((g) => taskLogChanges(g, logs, refDate, true)));
-  const clearAll = () => logValues(writableSelected.flatMap((g) => taskLogChanges(g, logs, refDate, false)));
+  const doneAll = () => logValues(writableSelected.filter((g) => canLogOn(g, refDate)).flatMap((g) => taskLogChanges(g, logs, refDate, true)));
+  const clearAll = () => logValues(writableSelected.filter((g) => canLogOn(g, refDate)).flatMap((g) => taskLogChanges(g, logs, refDate, false)));
 
   const closeEditor = () => {
     setEditing(false);
@@ -84,7 +86,7 @@ export default function TasksScreen() {
   };
   const submitHorizon = (payload: SavePayload) => saveGoals.mutate(payload, { onSuccess: closeEditor });
 
-  const closeActions = () => { setSelectedTask(null); saveGoals.reset(); moveTask.reset(); };
+  const closeActions = () => { setSelectedTask(null); saveGoals.reset(); copyTask.reset(); moveTask.reset(); };
   const editTask = (title: string) => {
     if (!selectedTask) return;
     saveGoals.mutate({ updates: [{ id: selectedTask.id, title, target: 1, weight: selectedTask.weight,
@@ -98,10 +100,17 @@ export default function TasksScreen() {
     saveGoals.mutate({ updates: equalizeTasks(siblings), creates: [], deletes: [task.id] }, { onSuccess: closeActions });
   };
 
+  const duplicateTask = () => {
+    if (!selectedTask || copyTask.isPending) return;
+    copyTask.mutate(copyTaskIntoPeriod(selectedTask, tasks, today), {
+      onSuccess: () => { closeActions(); cal.setRefDate(today); },
+    });
+  };
+
   return (
     <CalendarScaffold
       cal={cal}
-      navigationDisabled={editing || !!selectedTask || saveGoals.isPending || moveTask.isPending}
+      navigationDisabled={editing || !!selectedTask || saveGoals.isPending || copyTask.isPending || moveTask.isPending}
       rings={rings}
       pendingTaskCounts={pendingTaskCounts}
       daysWithProgress={daysWithProgress}
@@ -204,11 +213,13 @@ export default function TasksScreen() {
           )}
           {selectedTask ? (
             <TaskActions key={selectedTask.id} task={selectedTask} refDate={refDate}
-              saving={saveGoals.isPending || moveTask.isPending}
-              error={saveGoals.error?.message ?? moveTask.error?.message ?? null}
+              locked={!isPeriodEditable(selectedTask.timeframe, refDate)}
+              saving={saveGoals.isPending || copyTask.isPending || moveTask.isPending}
+              error={saveGoals.error?.message ?? copyTask.error?.message ?? moveTask.error?.message ?? null}
               onClose={closeActions}
               onEdit={editTask}
               onDelete={() => { void deleteTask(selectedTask); }}
+              onCopy={duplicateTask}
               onMove={(input) => moveTask.mutate(input, { onSuccess: closeActions })} />
           ) : null}
         </>

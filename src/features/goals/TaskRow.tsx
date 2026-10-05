@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Platform, Pressable, View, type GestureResponderEvent } from 'react-native';
 
 import type { DailyLog, Goal } from '../../core/domain';
+import { canLogOn } from '../../core/logic';
 import { Card, CheckIcon, GearIcon, Text } from '../../ui/components';
 import { spacing, timeframeColor, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
@@ -32,7 +33,7 @@ export function TaskRow({
   const done = isTaskDone(task, logs, date);
 
   const toggle = () => {
-    if (readOnly) return;
+    if (readOnly || !canLogOn(task, date)) return;
     if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
     onToggle(taskLogChanges(task, logs, date));
   };
@@ -71,7 +72,7 @@ export function TaskRow({
         </Pressable>
         {onActions ? (
           <Pressable accessibilityLabel={`Действия с задачей ${task.title}`} onPress={openActions} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
-            <GearIcon size={20} color={c.textFaint} strokeWidth={1.8} />
+            <GearIcon size={22} color={c.textMuted} strokeWidth={1.7} />
           </Pressable>
         ) : null}
       </View>

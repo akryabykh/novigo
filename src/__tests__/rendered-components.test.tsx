@@ -12,7 +12,7 @@ import { mkGoal, log } from './fixtures';
 let tree: ReactTestRenderer;
 const render = async (element: ReactElement) => { await act(async () => { tree = create(element); }); return tree!; };
 const hosts = (type: string) => tree.root.findAll(node => node.type === type);
-afterEach(async () => { if (tree) await act(async () => tree.unmount()); });
+afterEach(async () => { if (tree) await act(async () => tree.unmount()); jest.useRealTimers(); });
 
 test('Button blocks duplicate input while loading or disabled', async () => {
   const onPress = jest.fn();
@@ -45,23 +45,31 @@ test('Stepper clamps numeric entry and +/- at limits', async () => {
 });
 
 test('GoalRow caps the selected day at the remaining weekly target and hides controls read-only', async () => {
+  jest.useFakeTimers().setSystemTime(new Date(2026, 8, 26, 12));
   const goal = mkGoal({ id: 'g', timeframe: 'week', target: 3 });
   const onSave = jest.fn();
   const props = { goal, logs: [log('g', '2026-09-25', 2)], date: '2026-09-26', onSave };
   await render(<GoalRow {...props} />);
   await act(async () => hosts('Pressable')[1].props.onPress());
   expect(onSave).toHaveBeenCalledWith('g', 1);
+  jest.setSystemTime(new Date(2026, 8, 28));
+  await act(async () => hosts('Pressable')[1].props.onPress());
+  expect(onSave).toHaveBeenCalledTimes(1);
   await act(async () => tree.update(<GoalRow {...props} readOnly />));
   expect(hosts('Pressable')).toHaveLength(0);
 });
 
 test('TaskRow clears completion on the recorded day and blocks read-only toggle', async () => {
+  jest.useFakeTimers().setSystemTime(new Date(2026, 8, 26, 12));
   const task = mkGoal({ id: 't', kind: 'task', timeframe: 'week' });
   const onToggle = jest.fn();
   const props = { task, logs: [log('t', '2026-09-25', 1)], date: '2026-09-26', onToggle };
   await render(<TaskRow {...props} />);
   await act(async () => hosts('Pressable')[0].props.onPress());
   expect(onToggle).toHaveBeenCalledWith([log('t', '2026-09-25', 0)]);
+  jest.setSystemTime(new Date(2026, 8, 28));
+  await act(async () => hosts('Pressable')[0].props.onPress());
+  expect(onToggle).toHaveBeenCalledTimes(1);
   await act(async () => tree.update(<TaskRow {...props} readOnly />));
   await act(async () => hosts('Pressable')[0].props.onPress());
   expect(onToggle).toHaveBeenCalledTimes(1);

@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { Platform, Pressable, View } from 'react-native';
 
 import type { DailyLog, Goal } from '../../core/domain';
-import { goalCardProgress, goalCurrent, goalMaxOnDate, goalOnDate } from '../../core/logic';
+import { canLogOn, goalCardProgress, goalCurrent, goalMaxOnDate, goalOnDate } from '../../core/logic';
 import { Card, ProgressBar, Text, TrashIcon } from '../../ui/components';
 import { radius, spacing, timeframeColor, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
@@ -35,6 +35,7 @@ export function GoalRow({
   const done = current >= goal.target;
 
   const setTodayTo = (v: number) => {
+    if (readOnly || !canLogOn(goal, date)) return;
     const clamped = Math.max(0, Math.min(v, maxToday));
     if (clamped !== todayVal && Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
     onSave?.(goal.id, clamped);

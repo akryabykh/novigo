@@ -4,7 +4,7 @@ import { act, create } from 'react-test-renderer';
 import { CalendarScaffold } from '../features/calendar/CalendarScaffold';
 import { HorizonEditor } from '../features/goals/HorizonEditor';
 import { isRealDate, parseWeight } from '../features/goals/editor-validation';
-import type { Goal } from '../core/domain';
+import type { Goal, Timeframe } from '../core/domain';
 import { Text } from '../ui/components';
 
 jest.mock('react-native', () => ({ View: 'View', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
@@ -14,8 +14,22 @@ jest.mock('../ui/theme-provider', () => ({ useColors: () => ({}) }));
 jest.mock('../ui/components', () => ({ Button: 'Button', Card: 'Card', Input: 'Input', ProgressBar: 'ProgressBar', Text: 'Text', TrashIcon: 'TrashIcon', ProgressRing: 'ProgressRing', EmptyState: 'EmptyState' }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const goal = (id: string): Goal => ({ id, title: id, kind: 'goal', timeframe: 'day', target: 1, weight: 100, startDate: '2026-09-26', endDate: null } as Goal);
+const recurringTaskCases: [Timeframe, string, string, string | null][] = [
+  ['week', '2026-10-08', '2026-10-05', null],
+  ['month', '2026-10-08', '2026-10-01', null],
+];
 
 describe('editor safety', () => {
+  test.each(recurringTaskCases)('%s task starts at the beginning of its period', async (scope, selected, startDate, endDate) => {
+    const onSave = jest.fn();
+    let tree: any;
+    await act(async () => { tree = create(<HorizonEditor kind="task" scope={scope} existing={[]}
+      defaultStart={selected} onSave={onSave} onCancel={jest.fn()} />); });
+    await act(async () => { tree.root.findAllByType('Input')[0].props.onChangeText('Задача'); });
+    await act(async () => { tree.root.findAllByType('Button')[0].props.onPress(); });
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ creates: [expect.objectContaining({ startDate, endDate })] }));
+    await act(async () => { tree.unmount(); });
+  });
   test('changing live input data cannot delete IDs outside the original editing snapshot', async () => {
     const onSave = jest.fn();
     const props = { scope: 'day' as const, existing: [goal('a')], defaultStart: '2026-09-26', onSave, onCancel: jest.fn() };

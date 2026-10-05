@@ -78,7 +78,7 @@ export default function StatisticsScreen() {
     <Screen edges={['top']}>
       <View style={{ paddingTop: spacing.md, gap: spacing.xs }}>
         <Text variant="title">Статистика</Text>
-        <Text variant="caption" tone="muted">Учитываются завершённые периоды после 24 часов на исправления.</Text>
+        <Text variant="caption" tone="muted">Период учитывается после его окончания в местную полночь.</Text>
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

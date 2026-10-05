@@ -12,15 +12,17 @@ import type { TaskMoveInput } from '../offline/sync';
 
 const PERIODS: Timeframe[] = ['day', 'week', 'month'];
 
-export function TaskActions({ task, refDate, saving, error, onClose, onEdit, onDelete, onMove }: {
+export function TaskActions({ task, refDate, locked = false, saving, error, onClose, onEdit, onDelete, onMove, onCopy }: {
   task: Goal;
   refDate: string;
+  locked?: boolean;
   saving: boolean;
   error: string | null;
   onClose: () => void;
   onEdit: (title: string) => void;
   onDelete: () => void;
   onMove: (input: TaskMoveInput) => void;
+  onCopy?: () => void;
 }) {
   const c = useColors();
   const [mode, setMode] = useState<'menu' | 'edit' | 'move' | 'date'>('menu');
@@ -30,8 +32,11 @@ export function TaskActions({ task, refDate, saving, error, onClose, onEdit, onD
   const [visibleMonth, setVisibleMonth] = useState(startOfMonth(refDate));
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const move = (to: Timeframe, date: string) => onMove({ taskId: task.id, from: task.timeframe, to, ...taskMoveDates(to, date) });
+  const move = (to: Timeframe, date: string) => {
+    if (!locked) onMove({ taskId: task.id, from: task.timeframe, to, ...taskMoveDates(to, date) });
+  };
   const saveTitle = () => {
+    if (locked) return;
     if (!title.trim()) { setLocalError('Название задачи не может быть пустым'); return; }
     onEdit(title.trim());
   };
@@ -46,10 +51,16 @@ export function TaskActions({ task, refDate, saving, error, onClose, onEdit, onD
           borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }}
           contentContainerStyle={{ padding: spacing.xl, paddingBottom: spacing['2xl'], gap: spacing.md }}>
           <Text variant="heading" numberOfLines={2}>{task.title}</Text>
-          {mode === 'menu' ? (
+          {locked || mode === 'menu' ? (
             <>
-              <Button title="Редактировать задачу" variant="secondary" onPress={() => setMode('edit')} disabled={saving} />
-              <Button title="Перенести задачу" variant="secondary" onPress={() => setMode('move')} disabled={saving} />
+              {locked ? (
+                <Button title="Скопировать на новый период" variant="secondary" onPress={() => onCopy?.()} disabled={saving || !onCopy} />
+              ) : (
+                <>
+                  <Button title="Редактировать задачу" variant="secondary" onPress={() => setMode('edit')} disabled={saving} />
+                  <Button title="Перенести задачу" variant="secondary" onPress={() => setMode('move')} disabled={saving} />
+                </>
+              )}
               <Button title="Удалить задачу" variant="danger" onPress={onDelete} disabled={saving} />
             </>
           ) : mode === 'edit' ? (
