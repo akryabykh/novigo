@@ -119,8 +119,8 @@ export function HorizonEditor({
   const [originalIds] = useState(() => existing.map((g) => g.id));
   const [error, setError] = useState<string | null>(null);
 
-  // Daily tasks are single-day; weekly and monthly tasks recur each period.
-  const taskEnd = (start: string): string | null => scope === 'day' ? start : null;
+  // A task belongs to one selected calendar period, regardless of its scope.
+  const taskEnd = (start: string): string => periodRange(scope, start).end;
 
   const update = (key: string, patch: Partial<Row>) =>
     setRows((r) => r.map((x) => (x.key === key ? { ...x, ...patch } : x)));
@@ -250,7 +250,7 @@ export function HorizonEditor({
         {isTask
           ? scope === 'day'
             ? `Задача на этот день (${fmtDay(newStart)}).`
-            : `Задачи повторяются ${scope === 'week' ? 'каждую неделю' : 'каждый месяц'} (с ${fmtDay(newStart)}).`
+            : `Задачи только на ${scope === 'week' ? 'эту неделю' : 'этот месяц'} (с ${fmtDay(newStart)}).`
           : `Новые цели начнутся с ${fmtDay(defaultStart)} — навсегда или до выбранной даты.`}
       </Text>
 
