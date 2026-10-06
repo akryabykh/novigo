@@ -3,6 +3,7 @@ import { Platform, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { qk } from '../../core/query';
+import { syncCounter } from '../counter/counter-sync';
 import { finalizeMedalPeriods } from '../../core/data/medals-repo';
 import { Button, Text } from '../../ui/components';
 import { spacing } from '../../ui/theme';
@@ -26,6 +27,7 @@ export function OfflineStatus({ uid }: { uid: string | undefined }) {
       setOnline(navigator.onLine !== false);
       if (navigator.onLine === false || syncing.current) return;
       syncing.current = true;
+      void syncCounter(uid, true).catch(() => {});
       void (async () => {
         try {
           await synchronize(uid, qc);
