@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { useAuth } from '../../../features/auth/auth-provider';
-import { adjustCounter, EMPTY_COUNTER, formatCounterValue, loadCounter, persistCounter, type CounterState } from '../../../features/counter/counter-store';
+import { adjustCounter, applyCounterOperation, EMPTY_COUNTER, formatCounterValue, loadCounterRecord, newCounterOperationId, enqueueCounter, retryCounterWrite, visibleCounter, type CounterOperation, type CounterState } from '../../../features/counter/counter-store';
+import { notifyCounter, subscribeCounter, syncCounter } from '../../../features/counter/counter-sync';
 import { Button, Card, Screen, Text } from '../../../ui/components';
 import { confirmAction } from '../../../ui/confirm';
 import { radius, spacing, typography } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
-let snapshotSequence = 0;
 const formatSavedAt = (date: string) => new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 }).format(new Date(date));
@@ -23,45 +23,58 @@ function CounterContent({ uid }: { uid: string | undefined }) {
   const c = useColors();
   const [state, setState] = useState<CounterState>(EMPTY_COUNTER);
   const stateRef = useRef<CounterState>(EMPTY_COUNTER);
-  const writeVersion = useRef(0);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [pending, setPending] = useState(0);
 
   useEffect(() => {
+    if (!uid) return;
     let active = true;
-    if (uid) {
-      loadCounter(uid).then((loaded) => {
+    const refresh = () => {
+      void loadCounterRecord(uid).then((record) => {
         if (!active) return;
-        stateRef.current = loaded;
-        setState(loaded);
+        const visible = visibleCounter(record);
+        stateRef.current = visible;
+        setState(visible);
+        setPending(record.pending.length);
         setReady(true);
       }).catch(() => { if (active) setError('Не удалось загрузить счётчик. Открой раздел ещё раз.'); });
+    };
+    const sync = () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      void syncCounter(uid).then(() => { if (active) setError(null); })
+        .catch(() => { if (active) setError('Не удалось синхронизировать счётчик. Повтори позже.'); });
+    };
+    const unsubscribe = subscribeCounter(uid, refresh);
+    refresh();
+    sync();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', sync);
+      const timer = window.setInterval(sync, 30_000);
+      return () => { active = false; unsubscribe(); window.removeEventListener('online', sync); window.clearInterval(timer); };
     }
-    return () => { active = false; };
+    return () => { active = false; unsubscribe(); };
   }, [uid]);
 
-  const saveOnDevice = (next: CounterState) => {
-    if (!uid) return;
-    setError(null);
-    const version = ++writeVersion.current;
-    void persistCounter(uid, next).catch(() => {
-      if (version === writeVersion.current) setError('Не удалось сохранить на устройстве. Повтори сохранение.');
-    });
-  };
-
-  const commit = (next: CounterState) => {
-    if (!uid || !ready || next === stateRef.current) return;
+  const commit = (operation: CounterOperation) => {
+    if (!uid || !ready) return;
+    const next = applyCounterOperation(stateRef.current, operation);
     stateRef.current = next;
     setState(next);
-    saveOnDevice(next);
+    setPending((count) => count + 1);
+    setError(null);
+    void enqueueCounter(uid, operation).then(() => {
+      notifyCounter(uid);
+      return syncCounter(uid);
+    }).catch(() => setError('Не удалось сохранить или синхронизировать счётчик. Повтори позже.'));
   };
 
   const reset = async () => {
     if (!ready || stateRef.current.value === 0) return;
     if (await confirmAction('Сбросить текущее значение на ноль? Сохранённая история останется.',
       { title: 'Сбросить счётчик?', confirmLabel: 'Сбросить' })) {
-      commit({ ...stateRef.current, value: 0 });
+      commit({ id: newCounterOperationId(), type: 'reset' });
     }
   };
 
@@ -69,7 +82,7 @@ function CounterContent({ uid }: { uid: string | undefined }) {
     if (!ready || !stateRef.current.snapshots.length) return;
     if (await confirmAction('Удалить всю сохранённую историю счётчика?',
       { title: 'Очистить историю?', confirmLabel: 'Очистить' })) {
-      commit({ ...stateRef.current, snapshots: [] });
+      commit({ id: newCounterOperationId(), type: 'clear' });
     }
   };
 
@@ -80,7 +93,7 @@ function CounterContent({ uid }: { uid: string | undefined }) {
     <Screen edges={['top']}>
       <View style={{ paddingTop: spacing.md, gap: spacing.xs }}>
         <Text variant="title">Счётчик</Text>
-        <Text variant="caption" tone="muted">Значение сохраняется на этом устройстве и доступно без сети.</Text>
+        <Text variant="caption" tone="muted">Работает без сети и синхронизируется между устройствами.</Text>
       </View>
 
       <Card style={{ gap: spacing.xl }}>
@@ -96,24 +109,23 @@ function CounterContent({ uid }: { uid: string | undefined }) {
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <Button title="+1" size="lg" fullWidth={false} disabled={!ready || state.value === Number.MAX_SAFE_INTEGER}
-            style={{ flex: 1, height: 76 }} onPress={() => commit(adjustCounter(stateRef.current, 1))} />
+            style={{ flex: 1, height: 76 }} onPress={() => { if (adjustCounter(stateRef.current, 1) !== stateRef.current) commit({ id: newCounterOperationId(), type: 'delta', delta: 1 }); }} />
           <Button title="−1" size="lg" variant="secondary" fullWidth={false} disabled={!ready || state.value === 0}
-            style={{ flex: 1, height: 76 }} onPress={() => commit(adjustCounter(stateRef.current, -1))} />
+            style={{ flex: 1, height: 76 }} onPress={() => { if (adjustCounter(stateRef.current, -1) !== stateRef.current) commit({ id: newCounterOperationId(), type: 'delta', delta: -1 }); }} />
         </View>
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <Button title="Сохранить" size="md" variant="secondary" fullWidth={false} disabled={!ready}
-            style={{ flex: 1 }} onPress={() => commit({ ...stateRef.current, snapshots: [{
-              id: `${Date.now()}-${++snapshotSequence}`, value: stateRef.current.value, savedAt: new Date().toISOString(),
-            }, ...stateRef.current.snapshots] })} />
+            style={{ flex: 1 }} onPress={() => commit({ id: newCounterOperationId(), type: 'snapshot', value: stateRef.current.value, savedAt: new Date().toISOString() })} />
           <Button title="Сбросить" size="md" variant="ghost" fullWidth={false} disabled={!ready || state.value === 0}
             style={{ flex: 1 }} onPress={() => void reset()} />
         </View>
       </Card>
 
+      {pending > 0 ? <Text variant="caption" tone="muted">Ожидают синхронизации: {pending}</Text> : null}
       {error ? <View style={{ gap: spacing.sm }}>
         <Text variant="caption" tone="danger">{error}</Text>
-        <Button title="Повторить сохранение" size="md" variant="secondary"
-          onPress={() => saveOnDevice(stateRef.current)} />
+        <Button title="Повторить синхронизацию" size="md" variant="secondary"
+          onPress={() => { if (uid) void retryCounterWrite(uid).then(() => syncCounter(uid)).then(() => setError(null)).catch(() => setError('Не удалось синхронизировать счётчик. Повтори позже.')); }} />
       </View> : null}
 
       <Card style={{ gap: spacing.md }}>
