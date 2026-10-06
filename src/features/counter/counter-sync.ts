@@ -21,23 +21,29 @@ function parseServerState(value: unknown): CounterState {
   if (!Number.isSafeInteger(state.value) || state.value < 0 || !Array.isArray(state.snapshots)) {
     throw new Error('Сервер вернул неверное состояние счётчика.');
   }
-  return state;
+  return { ...state, title: typeof state.title === 'string' && state.title.trim() ? state.title : 'Счётчик' };
 }
 
 async function doSync(uid: string, pendingOnly: boolean): Promise<void> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
   let record = await loadCounterRecord(uid);
-  let sent = false;
   if (record.pending.length) await retryCounterWrite(uid);
   while (record.pending.length) {
-    const batch = record.pending.slice(0, 100);
-    const { data, error } = await supabase.rpc('apply_counter_operations', { p_operations: batch });
+    const first = record.pending[0];
+    const nextRename = record.pending.findIndex((item) => item.type === 'rename');
+    const batch = first.type === 'rename' ? [first]
+      : record.pending.slice(0, nextRename < 0 ? 100 : Math.min(nextRename, 100));
+    const { data, error } = first.type === 'rename'
+      ? await supabase.rpc('set_counter_title', { p_operation_id: first.id, p_title: first.title })
+      : await supabase.rpc('apply_counter_operations', { p_operations: batch });
     if (error) throw error;
-    record = await acknowledgeCounter(uid, batch.map((item) => item.id), parseServerState(data));
-    sent = true;
+    const server = parseServerState(data);
+    record = await acknowledgeCounter(uid, batch.map((item) => item.id), {
+      ...server, title: first.type === 'rename' ? server.title : record.base.title,
+    });
     notifyCounter(uid);
   }
-  if (pendingOnly || sent) return;
+  if (pendingOnly) return;
   const { data, error } = await supabase.rpc('get_counter_state');
   if (error) throw error;
   await acknowledgeCounter(uid, [], parseServerState(data));

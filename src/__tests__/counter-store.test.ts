@@ -18,8 +18,8 @@ test('counter starts at 0000, stays nonnegative and has no four-digit cap', () =
   expect(formatCounterValue(12)).toBe('0012');
   expect(formatCounterValue(10000)).toBe('10000');
   expect(adjustCounter(EMPTY_COUNTER, -1).value).toBe(0);
-  expect(adjustCounter({ value: 9999, snapshots: [] }, 1).value).toBe(10000);
-  expect(adjustCounter({ value: Number.MAX_SAFE_INTEGER, snapshots: [] }, 1).value).toBe(Number.MAX_SAFE_INTEGER);
+  expect(adjustCounter({ title: 'Счётчик', value: 9999, snapshots: [] }, 1).value).toBe(10000);
+  expect(adjustCounter({ title: 'Счётчик', value: Number.MAX_SAFE_INTEGER, snapshots: [] }, 1).value).toBe(Number.MAX_SAFE_INTEGER);
 });
 
 test('old local counter is queued for one-time import, including its history', () => {
@@ -35,7 +35,7 @@ test('acknowledgement preserves actions queued while an earlier batch was in fli
   const uid = 'counter-queue-test';
   await enqueueCounter(uid, { id: 'first-operation', type: 'delta', delta: 1 });
   await enqueueCounter(uid, { id: 'second-operation', type: 'delta', delta: 1 });
-  const record = await acknowledgeCounter(uid, ['first-operation'], { value: 5, snapshots: [] });
+  const record = await acknowledgeCounter(uid, ['first-operation'], { title: 'Счётчик', value: 5, snapshots: [] });
   expect(record.pending.map((op) => op.id)).toEqual(['second-operation']);
   expect(visibleCounter(record).value).toBe(6);
   expect((await loadCounterRecord(uid)).pending).toHaveLength(1);
@@ -43,11 +43,18 @@ test('acknowledgement preserves actions queued while an earlier batch was in fli
 });
 
 test('reset and history clearing are separate actions', () => {
-  const saved = applyCounterOperation({ value: 4, snapshots: [] }, {
+  const saved = applyCounterOperation({ title: 'Счётчик', value: 4, snapshots: [] }, {
     id: 'snapshot-operation', type: 'snapshot', value: 4, savedAt: '2026-10-06T12:00:00.000Z',
   });
   const reset = applyCounterOperation(saved, { id: 'reset-operation', type: 'reset' });
   expect(reset.value).toBe(0);
   expect(reset.snapshots).toHaveLength(1);
   expect(applyCounterOperation(reset, { id: 'clear-operation', type: 'clear' }).snapshots).toHaveLength(0);
+});
+
+test('custom title is applied without changing the count or saved history', () => {
+  const renamed = applyCounterOperation(EMPTY_COUNTER, { id: 'rename-1', type: 'rename', title: 'Подходы' });
+  expect(renamed.title).toBe('Подходы');
+  expect(renamed.value).toBe(0);
+  expect(renamed.snapshots).toEqual([]);
 });

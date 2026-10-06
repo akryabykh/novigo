@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { qk } from '../../core/query';
 import { syncCounter } from '../counter/counter-sync';
+import { syncStopwatch } from '../stopwatch/stopwatch-sync';
 import { finalizeMedalPeriods } from '../../core/data/medals-repo';
 import { Button, Text } from '../../ui/components';
 import { spacing } from '../../ui/theme';
@@ -28,6 +29,7 @@ export function OfflineStatus({ uid }: { uid: string | undefined }) {
       if (navigator.onLine === false || syncing.current) return;
       syncing.current = true;
       void syncCounter(uid, true).catch(() => {});
+      void syncStopwatch(uid, true).catch(() => {});
       void (async () => {
         try {
           await synchronize(uid, qc);

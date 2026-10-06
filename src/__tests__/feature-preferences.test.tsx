@@ -20,17 +20,11 @@ test('goals stay hidden by default and appear only after saved preference is res
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<FeaturePreferencesProvider><Harness /></FeaturePreferencesProvider>); });
   expect(settings.preferences.showGoals).toBe(false);
-  expect(settings.preferences.showStatistics).toBe(false);
-  expect(settings.preferences.showCounter).toBe(false);
-  await act(async () => { await settings.save({ showGoals: true, showStatistics: true, showCounter: true }); });
+  await act(async () => { await settings.save({ showGoals: true }); });
   expect(settings.preferences.showGoals).toBe(true);
-  expect(settings.preferences.showStatistics).toBe(true);
-  expect(settings.preferences.showCounter).toBe(true);
   await act(async () => { tree.unmount(); });
   await act(async () => { tree = create(<FeaturePreferencesProvider><Harness /></FeaturePreferencesProvider>); });
   expect(settings.ready).toBe(true);
   expect(settings.preferences.showGoals).toBe(true);
-  expect(settings.preferences.showStatistics).toBe(true);
-  expect(settings.preferences.showCounter).toBe(true);
   await act(async () => { tree.unmount(); });
 });

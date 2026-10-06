@@ -29,6 +29,7 @@ jest.mock('../features/queries', () => ({
 jest.mock('../features/preferences/FeaturePreferences', () => ({
   useFeaturePreferences: () => ({ preferences: { showGoals: false }, ready: true, save: mockSavePreferences }),
 }));
+jest.mock('../features/statistics/StatisticsContent', () => ({ StatisticsContent: () => null }));
 let tree: ReactTestRenderer;
 let qc: QueryClient;
 async function render(element: ReactElement) {

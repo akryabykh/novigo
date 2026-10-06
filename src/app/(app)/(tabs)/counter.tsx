@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
+import { router } from 'expo-router';
 
 import { useAuth } from '../../../features/auth/auth-provider';
 import { adjustCounter, applyCounterOperation, EMPTY_COUNTER, formatCounterValue, loadCounterRecord, newCounterOperationId, enqueueCounter, retryCounterWrite, visibleCounter, type CounterOperation, type CounterState } from '../../../features/counter/counter-store';
 import { notifyCounter, subscribeCounter, syncCounter } from '../../../features/counter/counter-sync';
-import { Button, Card, Screen, Text } from '../../../ui/components';
+import { Button, Card, Input, Screen, Text } from '../../../ui/components';
 import { confirmAction } from '../../../ui/confirm';
 import { radius, spacing, typography } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
@@ -26,6 +27,8 @@ function CounterContent({ uid }: { uid: string | undefined }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [historyVisible, setHistoryVisible] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
   const [pending, setPending] = useState(0);
 
   useEffect(() => {
@@ -92,11 +95,30 @@ function CounterContent({ uid }: { uid: string | undefined }) {
   return (
     <Screen edges={['top']}>
       <View style={{ paddingTop: spacing.md, gap: spacing.xs }}>
+        <Button title="‹ Приложения" size="md" variant="ghost" fullWidth={false}
+          onPress={() => router.navigate('/(app)/(tabs)/apps')} />
         <Text variant="title">Счётчик</Text>
         <Text variant="caption" tone="muted">Работает без сети и синхронизируется между устройствами.</Text>
       </View>
 
       <Card style={{ gap: spacing.xl }}>
+        {renaming ? <View style={{ gap: spacing.sm }}>
+          <Input label="Название счётчика" value={titleDraft} maxLength={60} onChangeText={setTitleDraft} autoFocus />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Button title="Сохранить название" size="md" fullWidth={false} disabled={!titleDraft.trim()}
+              style={{ flex: 1 }} onPress={() => {
+                const title = titleDraft.trim();
+                if (title && title !== stateRef.current.title) commit({ id: newCounterOperationId(), type: 'rename', title });
+                setRenaming(false);
+              }} />
+            <Button title="Отмена" size="md" variant="secondary" fullWidth={false}
+              onPress={() => setRenaming(false)} />
+          </View>
+        </View> : <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <Text variant="heading" style={{ flex: 1 }} numberOfLines={2}>{state.title}</Text>
+          <Button title="Изменить" size="md" variant="ghost" fullWidth={false} disabled={!ready}
+            onPress={() => { setTitleDraft(stateRef.current.title); setRenaming(true); }} />
+        </View>}
         <View style={{ minHeight: 160, alignSelf: 'stretch', borderRadius: radius.xl,
           backgroundColor: c.surfaceAlt, borderWidth: 1, borderColor: c.border,
           alignItems: 'center', justifyContent: 'center', gap: spacing.xs, paddingHorizontal: spacing.sm }}>

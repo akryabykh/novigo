@@ -50,6 +50,22 @@ export function CounterIcon({ size = 24, color = '#000', strokeWidth = 2 }: Icon
   );
 }
 
+export function AppsIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return <Svg {...base(size)} fill="none">
+    <Path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"
+      stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+  </Svg>;
+}
+
+export function TimerIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return <Svg {...base(size)} fill="none">
+    <Circle cx="12" cy="13" r="8" stroke={color} strokeWidth={strokeWidth} />
+    <Line x1="12" y1="13" x2="12" y2="8" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="12" y1="13" x2="16" y2="15" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    <Line x1="9" y1="2" x2="15" y2="2" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+  </Svg>;
+}
+
 export function UserIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
   return (
     <Svg {...base(size)} fill="none">
