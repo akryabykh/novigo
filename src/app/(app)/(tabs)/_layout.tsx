@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 
-import { ChartIcon, CounterIcon, ListIcon, TargetIcon, UserIcon } from '../../../ui/components';
+import { AppsIcon, ListIcon, TargetIcon, UserIcon } from '../../../ui/components';
 import { useFeaturePreferences } from '../../../features/preferences/FeaturePreferences';
 import { typography } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
@@ -33,14 +33,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="statistics"
-        options={{
-          title: 'Статистика',
-          href: preferences.showStatistics ? undefined : null,
-          tabBarIcon: ({ color }) => <ChartIcon color={color as string} size={24} />,
-        }}
-      />
-      <Tabs.Screen
         name="index"
         options={{
           title: 'Цели',
@@ -49,13 +41,21 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="apps"
+        options={{
+          title: 'Приложения',
+          tabBarIcon: ({ color }) => <AppsIcon color={color as string} size={24} />,
+        }}
+      />
+      <Tabs.Screen
         name="counter"
         options={{
           title: 'Счётчик',
-          href: preferences.showCounter ? undefined : null,
-          tabBarIcon: ({ color }) => <CounterIcon color={color as string} size={24} />,
+          href: null,
         }}
       />
+      <Tabs.Screen name="stopwatch" options={{ title: 'Секундомер', href: null }} />
+      <Tabs.Screen name="statistics" options={{ title: 'Статистика', href: null }} />
       <Tabs.Screen
         name="profile"
         options={{

@@ -3,8 +3,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 import { useAuth } from '../auth/auth-provider';
 
-type Preferences = { showGoals: boolean; showStatistics: boolean; showCounter: boolean };
-const DEFAULTS: Preferences = { showGoals: false, showStatistics: false, showCounter: false };
+type Preferences = { showGoals: boolean };
+const DEFAULTS: Preferences = { showGoals: false };
 const Context = createContext<{
   preferences: Preferences;
   ready: boolean;
@@ -27,8 +27,6 @@ export function FeaturePreferencesProvider({ children }: { children: ReactNode }
         const stored = raw ? JSON.parse(raw) as Partial<Preferences> : null;
         setLoaded({ uid, preferences: {
           showGoals: stored?.showGoals === true,
-          showStatistics: stored?.showStatistics === true,
-          showCounter: stored?.showCounter === true,
         } });
       })
       .catch(() => { if (active) setLoaded({ uid, preferences: DEFAULTS }); });

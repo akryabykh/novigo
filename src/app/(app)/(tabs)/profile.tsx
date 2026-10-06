@@ -5,6 +5,7 @@ import { nameSchema, passwordSchema } from '../../../core/validation';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { useProfile, useUpdateNames } from '../../../features/queries';
 import { useFeaturePreferences } from '../../../features/preferences/FeaturePreferences';
+import { StatisticsContent } from '../../../features/statistics/StatisticsContent';
 import {
   Button,
   Card,
@@ -32,20 +33,14 @@ export default function ProfileScreen() {
   const { preferences, ready: preferencesReady, save: savePreferences } = useFeaturePreferences();
   const [showGoalsOverride, setShowGoalsOverride] = useState<boolean | null>(null);
   const showGoalsDraft = showGoalsOverride ?? preferences.showGoals;
-  const [showStatisticsOverride, setShowStatisticsOverride] = useState<boolean | null>(null);
-  const showStatisticsDraft = showStatisticsOverride ?? preferences.showStatistics;
-  const [showCounterOverride, setShowCounterOverride] = useState<boolean | null>(null);
-  const showCounterDraft = showCounterOverride ?? preferences.showCounter;
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [preferencesMessage, setPreferencesMessage] = useState<string | null>(null);
   const saveDisplay = async () => {
     setPreferencesSaving(true);
     setPreferencesMessage(null);
     try {
-      await savePreferences({ showGoals: showGoalsDraft, showStatistics: showStatisticsDraft, showCounter: showCounterDraft });
+      await savePreferences({ showGoals: showGoalsDraft });
       setShowGoalsOverride(null);
-      setShowStatisticsOverride(null);
-      setShowCounterOverride(null);
       setPreferencesMessage('Сохранено');
     } catch { setPreferencesMessage('Не удалось сохранить настройки'); }
     finally { setPreferencesSaving(false); }
@@ -141,6 +136,8 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
+      <StatisticsContent />
+
       {/* names */}
       <Text variant="heading">Имя</Text>
       <Card>
@@ -193,14 +190,6 @@ export default function ProfileScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <Text variant="label" style={{ flex: 1 }}>Показывать «Цели» в нижней панели</Text>
             <Switch value={showGoalsDraft} onValueChange={setShowGoalsOverride} disabled={!preferencesReady || preferencesSaving} />
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <Text variant="label" style={{ flex: 1 }}>Показывать «Статистику» в нижней панели</Text>
-            <Switch value={showStatisticsDraft} onValueChange={setShowStatisticsOverride} disabled={!preferencesReady || preferencesSaving} />
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <Text variant="label" style={{ flex: 1 }}>Показывать «Счётчик» в нижней панели</Text>
-            <Switch value={showCounterDraft} onValueChange={setShowCounterOverride} disabled={!preferencesReady || preferencesSaving} />
           </View>
           {preferencesMessage ? <Text variant="caption">{preferencesMessage}</Text> : null}
           <Button title="Сохранить настройки" size="md" onPress={saveDisplay} loading={preferencesSaving} disabled={!preferencesReady} />

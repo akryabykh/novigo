@@ -1,15 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CounterSnapshot { id: string; value: number; savedAt: string }
-export interface CounterState { value: number; snapshots: CounterSnapshot[] }
+export interface CounterState { title: string; value: number; snapshots: CounterSnapshot[] }
 export type CounterOperation =
   | { id: string; type: 'delta'; delta: number }
   | { id: string; type: 'reset' }
   | { id: string; type: 'snapshot'; value: number; savedAt: string }
-  | { id: string; type: 'clear' };
+  | { id: string; type: 'clear' }
+  | { id: string; type: 'rename'; title: string };
 export interface CounterRecord { version: 2; base: CounterState; pending: CounterOperation[] }
 
-export const EMPTY_COUNTER: CounterState = { value: 0, snapshots: [] };
+export const EMPTY_COUNTER: CounterState = { title: 'Счётчик', value: 0, snapshots: [] };
 const emptyRecord = (): CounterRecord => ({ version: 2, base: EMPTY_COUNTER, pending: [] });
 const cache = new Map<string, CounterRecord>();
 const loads = new Map<string, Promise<CounterRecord>>();
@@ -29,6 +30,7 @@ function parseState(value: unknown): CounterState {
   if (!value || typeof value !== 'object') return EMPTY_COUNTER;
   const record = value as Partial<CounterState>;
   return {
+    title: typeof record.title === 'string' && record.title.trim() ? record.title.trim().slice(0, 60) : 'Счётчик',
     value: validCount(record.value) ? record.value : 0,
     snapshots: Array.isArray(record.snapshots) ? record.snapshots.filter((item): item is CounterSnapshot =>
       item && typeof item.id === 'string' && validCount(item.value)
@@ -42,6 +44,7 @@ function validOperation(value: unknown): value is CounterOperation {
   if (typeof op.id !== 'string' || !op.id) return false;
   if (op.type === 'delta') return typeof op.delta === 'number' && Number.isSafeInteger(op.delta) && op.delta !== 0;
   if (op.type === 'snapshot') return validCount(op.value) && typeof op.savedAt === 'string' && !Number.isNaN(Date.parse(op.savedAt));
+  if (op.type === 'rename') return typeof op.title === 'string' && op.title.trim().length > 0 && op.title.trim().length <= 60;
   return op.type === 'reset' || op.type === 'clear';
 }
 
@@ -74,6 +77,7 @@ export function applyCounterOperation(state: CounterState, operation: CounterOpe
       { id: operation.id, value: operation.value, savedAt: operation.savedAt }, ...state.snapshots,
     ] };
     case 'clear': return { ...state, snapshots: [] };
+    case 'rename': return { ...state, title: operation.title.trim() };
   }
 }
 
