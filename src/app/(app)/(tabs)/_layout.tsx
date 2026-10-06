@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 
-import { ChartIcon, ListIcon, TargetIcon, UserIcon } from '../../../ui/components';
+import { ChartIcon, CounterIcon, ListIcon, TargetIcon, UserIcon } from '../../../ui/components';
 import { useFeaturePreferences } from '../../../features/preferences/FeaturePreferences';
 import { typography } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
@@ -46,6 +46,14 @@ export default function TabsLayout() {
           title: 'Цели',
           href: preferences.showGoals ? undefined : null,
           tabBarIcon: ({ color }) => <TargetIcon color={color as string} size={24} />,
+        }}
+      />
+      <Tabs.Screen
+        name="counter"
+        options={{
+          title: 'Счётчик',
+          href: preferences.showCounter ? undefined : null,
+          tabBarIcon: ({ color }) => <CounterIcon color={color as string} size={24} />,
         }}
       />
       <Tabs.Screen

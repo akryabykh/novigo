@@ -40,6 +40,16 @@ export function ChartIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconPr
   );
 }
 
+export function CounterIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none">
+      <Path d="M4 5h16v14H4z" stroke={color} strokeWidth={strokeWidth} strokeLinejoin="round" />
+      <Line x1="12" y1="8" x2="12" y2="16" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <Line x1="8" y1="12" x2="16" y2="12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function UserIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
   return (
     <Svg {...base(size)} fill="none">
