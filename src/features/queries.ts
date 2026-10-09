@@ -15,8 +15,8 @@ import type { DailyLog, Goal, GoalKind, Timeframe } from '../core/domain';
 import { qk } from '../core/query';
 import { syncGamification } from './gamification/sync';
 import { overlayPendingLogs } from './calendar/log-writer';
-import { loadOfflineWorkspace, queueHorizon, queueTaskMove, type TaskMoveInput } from './offline/sync';
-import { readOffline, updateOffline } from './offline/store';
+import { loadOfflineWorkspace, overlayOperations, queueHorizon, queueTaskMove, type TaskMoveInput } from './offline/sync';
+import { peekOffline, readOffline, updateOffline } from './offline/store';
 
 export interface Workspace {
   goals: Goal[];
@@ -35,6 +35,8 @@ export type GoalUpdate = GoalPatch;
 export function useProfile(uid: string | undefined) {
   return useQuery({
     queryKey: qk.profile(uid ?? 'anon'),
+    initialData: () => uid && Platform.OS === 'web' ? peekOffline(uid)?.profile ?? undefined : undefined,
+    initialDataUpdatedAt: 0,
     // Web can read its saved profile without a connection.
     networkMode: Platform.OS === 'web' ? 'always' : 'online',
     queryFn: async () => {
@@ -57,6 +59,12 @@ export function useWorkspace(uid: string | undefined) {
   const qc = useQueryClient();
   return useQuery({
     queryKey: qk.workspace(uid ?? 'anon'),
+    initialData: () => {
+      if (!uid || Platform.OS !== 'web') return undefined;
+      const saved = peekOffline(uid);
+      return saved?.workspace ? overlayOperations(saved.workspace, saved.operations) : undefined;
+    },
+    initialDataUpdatedAt: 0,
     // Run the local snapshot lookup even when the browser reports offline.
     networkMode: Platform.OS === 'web' ? 'always' : 'online',
     queryFn: async () => overlayPendingLogs(qc, uid!, Platform.OS === 'web'

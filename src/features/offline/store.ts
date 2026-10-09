@@ -35,6 +35,17 @@ function readBackup(uid: string): OfflineRecord {
   return raw ? JSON.parse(raw) as OfflineRecord : blank();
 }
 
+/** Synchronous boot snapshot; the durable IndexedDB copy is checked in the background. */
+export function peekOffline(uid: string): OfflineRecord | null {
+  try {
+    const record = readBackup(uid);
+    if (record.workspace && (!Array.isArray(record.workspace.goals) || !Array.isArray(record.workspace.logs))) return null;
+    return { ...record, operations: Array.isArray(record.operations) ? record.operations : [] };
+  } catch {
+    return null;
+  }
+}
+
 function latestRecord(primary: OfflineRecord | undefined, uid: string): OfflineRecord {
   let backup: OfflineRecord | undefined;
   try { backup = readBackup(uid); } catch { /* IndexedDB may still be available. */ }

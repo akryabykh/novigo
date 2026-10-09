@@ -36,3 +36,20 @@ test('midnight leaves an intentionally selected historical date in place', async
   expect(calendar.today).toBe('2026-10-05');
   expect(calendar.refDate).toBe('2026-10-01');
 });
+
+test.each<['week' | 'month', string]>([
+  ['week', '2026-10-09'],
+  ['week', '2026-09-01'],
+  ['month', '2026-10-09'],
+  ['month', '2026-09-01'],
+])('Today returns from %s at %s to the current day', async (scope, selectedDate) => {
+  jest.useFakeTimers().setSystemTime(new Date(2026, 9, 9, 12));
+  await act(async () => { tree = create(<Harness />); });
+  await act(async () => {
+    calendar.setScope(scope);
+    calendar.setRefDate(selectedDate);
+  });
+  await act(async () => { calendar.goToday(); });
+  expect(calendar.scope).toBe('day');
+  expect(calendar.refDate).toBe('2026-10-09');
+});

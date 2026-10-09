@@ -12,16 +12,16 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { isSupabaseConfigured } from '../core/data';
 import { queryClient } from '../core/query';
 import { AuthProvider, useAuth } from '../features/auth/auth-provider';
-import { useProfile } from '../features/queries';
+import { useProfile, useWorkspace } from '../features/queries';
 import { OfflineStatus } from '../features/offline/OfflineStatus';
-import { FeaturePreferencesProvider } from '../features/preferences/FeaturePreferences';
+import { FeaturePreferencesProvider, useFeaturePreferences } from '../features/preferences/FeaturePreferences';
 import { EmptyState } from '../ui/components';
 import { SetupNotice } from '../ui/SetupNotice';
 import { spacing } from '../ui/theme';
@@ -33,15 +33,18 @@ function RootGate() {
   const { session, initializing } = useAuth();
   const uid = session?.user?.id;
   const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile(uid);
+  const { isLoading: workspaceLoading } = useWorkspace(profile ? uid : undefined);
+  const { ready: preferencesReady } = useFeaturePreferences();
+  const { ready: themeReady } = useTheme();
   const segments = useSegments();
   const router = useRouter();
   const openedTasks = useRef(false);
   const c = useColors();
+  const inAuthGroup = segments[0] === '(auth)';
+  const isNameStep = segments.includes('complete-profile') || segments.includes('register');
 
   useEffect(() => {
     if (initializing) return;
-    const inAuthGroup = segments[0] === '(auth)';
-
     if (!session) {
       openedTasks.current = false;
       if (!inAuthGroup) router.replace('/(auth)/login');
@@ -55,15 +58,14 @@ function RootGate() {
       // Session + confirmed no profile row → the name step must finish. The
       // register / complete-profile screens handle it themselves; from anywhere
       // else (e.g. logging in with a profile-less account) force-redirect there.
-      const onNameStep = segments.includes('complete-profile') || segments.includes('register');
-      if (!onNameStep) router.replace('/(auth)/complete-profile');
+      if (!isNameStep) router.replace('/(auth)/complete-profile');
       return;
     }
     if (!openedTasks.current) {
       openedTasks.current = true;
       router.replace('/(app)/(tabs)/tasks');
     }
-  }, [session, initializing, profile, profileLoading, profileError, segments, router]);
+  }, [session, initializing, profile, profileLoading, profileError, inAuthGroup, isNameStep, router]);
 
   // Signed in but the profile request failed (e.g. network) — offer a retry
   // instead of silently redirecting to complete-profile or hanging.
@@ -81,6 +83,10 @@ function RootGate() {
     );
   }
 
+  const loading = initializing || !themeReady || (session
+    ? profileLoading || !preferencesReady || (profile ? workspaceLoading || inAuthGroup : !isNameStep)
+    : !inAuthGroup);
+
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <OfflineStatus uid={uid} />
@@ -88,6 +94,13 @@ function RootGate() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
       </Stack>
+      {loading && (
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+          backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: c.text, fontSize: 28, fontWeight: '700', marginBottom: spacing.lg }}>Novigo</Text>
+          <ActivityIndicator color={c.accent} accessibilityLabel="Загрузка данных" />
+        </View>
+      )}
     </View>
   );
 }
