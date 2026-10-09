@@ -15,6 +15,7 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 const STORAGE_KEY = 'novigo.theme.preference';
 
 interface ThemeContextValue {
+  ready: boolean;
   /** effective scheme actually rendered */
   scheme: ColorScheme;
   /** user preference (may be 'system') */
@@ -27,16 +28,22 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
+  const [ready, setReady] = useState(false);
   const { colorScheme } = useNwColorScheme();
 
   // hydrate persisted preference once
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((stored) => {
-      if (stored === 'light' || stored === 'dark' || stored === 'system') {
-        setPreferenceState(stored);
-        nwColorScheme.set(stored);
-      }
-    });
+    let active = true;
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((stored) => {
+        if (active && (stored === 'light' || stored === 'dark' || stored === 'system')) {
+          setPreferenceState(stored);
+          nwColorScheme.set(stored);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setReady(true); });
+    return () => { active = false; };
   }, []);
 
   const setPreference = (p: ThemePreference) => {
@@ -49,7 +56,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider
-      value={{ scheme, preference, setPreference, colors: colorsFor(scheme) }}>
+      value={{ ready, scheme, preference, setPreference, colors: colorsFor(scheme) }}>
       {children}
     </ThemeContext.Provider>
   );

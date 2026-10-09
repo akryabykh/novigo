@@ -62,7 +62,10 @@ export function useCalendar(): Calendar {
       scope === 'day' ? addDays(current, dir) : scope === 'week' ? addDays(current, dir * 7) : addMonths(current, dir),
     ), [scope]);
 
-  const goToday = () => setRefDate(today);
+  const goToday = () => {
+    setScope('day');
+    setRefDate(today);
+  };
 
   return { today, scope, setScope, refDate, setRefDate, weekDays, stepPeriod, goToday };
 }
