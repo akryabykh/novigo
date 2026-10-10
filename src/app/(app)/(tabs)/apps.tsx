@@ -6,7 +6,7 @@ import { radius, spacing } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
 
 const items = [
-  { title: 'Счётчик', description: 'Нажатия и сохранённые результаты', icon: CounterIcon, path: '/(app)/(tabs)/counter' },
+  { title: 'Счётчики', description: 'Несколько счётчиков для разных дел', icon: CounterIcon, path: '/(app)/(tabs)/counter' },
   { title: 'Секундомер', description: 'Время работы по задачам', icon: TimerIcon, path: '/(app)/(tabs)/stopwatch' },
 ] as const;
 
