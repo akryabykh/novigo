@@ -9,7 +9,7 @@ export async function finalizeMedalPeriods(timeZone: string): Promise<number> {
 
 export async function listMedalResults(userId: string): Promise<MedalPeriodResult[]> {
   const { data, error } = await supabase.from('medal_period_results')
-    .select('timeframe,period_start,period_end,completed')
+    .select('timeframe,period_start,period_end,completed,perfect,completion_percent')
     .eq('user_id', userId)
     .order('period_start', { ascending: true });
   if (error) throw error;
@@ -18,5 +18,7 @@ export async function listMedalResults(userId: string): Promise<MedalPeriodResul
     periodStart: row.period_start as string,
     periodEnd: row.period_end as string,
     completed: row.completed as boolean,
+    perfect: row.perfect as boolean,
+    completionPercent: row.completion_percent as number | null,
   }));
 }

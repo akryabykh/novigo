@@ -41,7 +41,7 @@ export function copyTaskIntoPeriod(task: Goal, allTasks: Goal[], date: string): 
     })),
     creates: [{
       kind: 'task', title: task.title, timeframe: task.timeframe,
-      target: 1, weight: weights[siblings.length], startDate: start, endDate: end,
+      target: 1, weight: weights[siblings.length], startDate: start, endDate: end, tag: task.tag ?? null,
     }],
     deletes: [],
   };

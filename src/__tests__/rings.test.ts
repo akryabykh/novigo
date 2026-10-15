@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@jest/globals';
-import { computeRings, goalCardProgress, goalMaxOnDate } from '../core/logic';
+import { computeRings, computeTaskRings, goalCardProgress, goalMaxOnDate } from '../core/logic';
 import { log, mkGoal } from './fixtures';
 
 const REF = '2024-06-12'; // Wed; its week is Mon 2024-06-10 .. Sun 2024-06-16
@@ -71,6 +71,21 @@ describe('month ring = 80% weeks-part + 20% month-part (dynamic week denominator
     // month = 0.8 * 0.6 = 0.48
     expect(computeRings([daily], logs, '2024-06-15').month).toBeCloseTo(0.48);
   });
+});
+
+test('task rings use only their own period, including an incomplete month with 90% done', () => {
+  const tasks = [
+    mkGoal({ id: 'daily', kind: 'task', timeframe: 'day', target: 1 }),
+    mkGoal({ id: 'weekly', kind: 'task', timeframe: 'week', target: 1 }),
+    ...Array.from({ length: 10 }, (_, i) => mkGoal({ id: `month-${i}`, kind: 'task', timeframe: 'month', target: 1 })),
+  ];
+  const logs = [log('daily', REF, 1), ...Array.from({ length: 9 }, (_, i) => log(`month-${i}`, REF, 1))];
+  expect(computeTaskRings(tasks, logs, REF)).toEqual({ day: 1, week: 0, month: 0.9 });
+});
+
+test('task ring is zero for an empty period and ignores goals', () => {
+  const goal = mkGoal({ id: 'goal', kind: 'goal', timeframe: 'week', target: 1 });
+  expect(computeTaskRings([goal], [log('goal', REF, 1)], REF)).toEqual({ day: 0, week: 0, month: 0 });
 });
 
 describe('goalMaxOnDate never lets a period exceed its target', () => {

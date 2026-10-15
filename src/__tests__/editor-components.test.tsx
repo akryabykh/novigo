@@ -31,6 +31,19 @@ describe('editor safety', () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ creates: [expect.objectContaining({ startDate, endDate })] }));
     await act(async () => { tree.unmount(); });
   });
+  test('a task saves exactly the selected tag', async () => {
+    const onSave = jest.fn();
+    let tree: any;
+    await act(async () => { tree = create(<HorizonEditor kind="task" scope="day" existing={[]}
+      defaultStart="2026-10-08" onSave={onSave} onCancel={jest.fn()} />); });
+    await act(async () => { tree.root.findAllByType('Input')[0].props.onChangeText('Убраться'); });
+    const tags = tree.root.findAllByType('Pressable').filter((node: any) => node.props.accessibilityRole === 'radio');
+    expect(tags).toHaveLength(4);
+    await act(async () => { tags[3].props.onPress(); });
+    await act(async () => { tree.root.findAllByType('Button')[0].props.onPress(); });
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ creates: [expect.objectContaining({ tag: 'home' })] }));
+    await act(async () => { tree.unmount(); });
+  });
   test('changing live input data cannot delete IDs outside the original editing snapshot', async () => {
     const onSave = jest.fn();
     const props = { scope: 'day' as const, existing: [goal('a')], defaultStart: '2026-09-26', onSave, onCancel: jest.fn() };

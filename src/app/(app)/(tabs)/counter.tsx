@@ -211,7 +211,7 @@ function CounterContent({ uid }: { uid: string | undefined }) {
           style={({ pressed }) => ({ flex: 1, height: 92, borderRadius: radius.xl,
             alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent,
             opacity: !ready || current.value === Number.MAX_SAFE_INTEGER ? 0.45 : pressed ? 0.82 : 1 })}>
-          <Text style={{ color: c.onAccent, fontFamily: typography.bold, fontSize: 30, lineHeight: 36 }}>+1</Text>
+          <Text style={{ color: c.onAccent, fontFamily: typography.bold, fontSize: 44, lineHeight: 50 }}>+</Text>
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Уменьшить счётчик на один"
           disabled={!ready || current.value === 0}
@@ -221,7 +221,7 @@ function CounterContent({ uid }: { uid: string | undefined }) {
           style={({ pressed }) => ({ width: 84, height: 92, borderRadius: radius.xl,
             borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center',
             backgroundColor: c.surfaceAlt, opacity: !ready || current.value === 0 ? 0.45 : pressed ? 0.75 : 1 })}>
-          <Text style={{ color: c.textMuted, fontFamily: typography.semibold, fontSize: 20, lineHeight: 26 }}>−1</Text>
+          <Text style={{ color: c.textMuted, fontFamily: typography.semibold, fontSize: 34, lineHeight: 40 }}>−</Text>
         </Pressable>
       </View>
 

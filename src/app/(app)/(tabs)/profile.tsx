@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Switch, View } from 'react-native';
+import { Image, Platform, Switch, View } from 'react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { deleteAvatar, getAvatarUrl, uploadAvatar } from '../../../core/data/avatar-repo';
 import { nameSchema, passwordSchema } from '../../../core/validation';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { useProfile, useUpdateNames } from '../../../features/queries';
 import { useFeaturePreferences } from '../../../features/preferences/FeaturePreferences';
+import { prepareAvatar } from '../../../features/profile/avatar-image';
 import { StatisticsContent } from '../../../features/statistics/StatisticsContent';
 import {
   Button,
@@ -16,6 +19,7 @@ import {
 } from '../../../ui/components';
 import { radius, spacing } from '../../../ui/theme';
 import { useColors, useTheme, type ThemePreference } from '../../../ui/theme-provider';
+import { confirmAction } from '../../../ui/confirm';
 
 const THEME_SEGMENTS: { value: ThemePreference; label: string }[] = [
   { value: 'light', label: 'Светлая' },
@@ -28,7 +32,51 @@ export default function ProfileScreen() {
   const { preference, setPreference } = useTheme();
   const { user, signOut, updatePassword } = useAuth();
   const uid = user?.id;
+  const qc = useQueryClient();
   const { data: profile } = useProfile(uid);
+  const avatarKey = ['profile-avatar', uid];
+  const { data: avatarUrl } = useQuery({ queryKey: avatarKey, enabled: !!uid,
+    queryFn: () => getAvatarUrl(uid!), staleTime: 30 * 60 * 1000,
+    refetchInterval: 45 * 60 * 1000, retry: 1 });
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
+  const chooseAvatar = () => {
+    if (!uid || avatarBusy) return;
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      setAvatarError('Выбор фото пока доступен в веб-приложении');
+      return;
+    }
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.style.display = 'none';
+    document.body.appendChild(picker);
+    picker.addEventListener('cancel', () => picker.remove(), { once: true });
+    picker.onchange = async () => {
+      const file = picker.files?.[0];
+      picker.remove();
+      if (!file) return;
+      setAvatarBusy(true);
+      setAvatarError(null);
+      try {
+        const photo = await prepareAvatar(file);
+        const url = await uploadAvatar(uid, photo);
+        qc.setQueryData(avatarKey, url);
+      } catch (error) {
+        setAvatarError(error instanceof Error ? error.message : 'Не удалось загрузить фото');
+      } finally { setAvatarBusy(false); }
+    };
+    picker.click();
+  };
+  const removeAvatar = async () => {
+    if (!uid || avatarBusy || !(await confirmAction('Убрать фото профиля?'))) return;
+    setAvatarBusy(true);
+    setAvatarError(null);
+    try { await deleteAvatar(uid); qc.setQueryData(avatarKey, null); }
+    catch (error) { setAvatarError(error instanceof Error ? error.message : 'Не удалось убрать фото'); }
+    finally { setAvatarBusy(false); }
+  };
   const updateNames = useUpdateNames(uid);
   const { preferences, ready: preferencesReady, save: savePreferences } = useFeaturePreferences();
   const [showGoalsOverride, setShowGoalsOverride] = useState<boolean | null>(null);
@@ -115,13 +163,13 @@ export default function ProfileScreen() {
               width: 60,
               height: 60,
               borderRadius: radius.full,
+              overflow: 'hidden',
               backgroundColor: c.accentSoft,
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Text variant="heading" tone="accent">
-              {initials.toUpperCase() || '🙂'}
-            </Text>
+            {avatarUrl ? <Image source={{ uri: avatarUrl }} style={{ width: 60, height: 60 }} />
+              : <Text variant="heading" tone="accent">{initials.toUpperCase() || '🙂'}</Text>}
           </View>
           <View style={{ flex: 1 }}>
             <Text variant="heading" numberOfLines={1}>
@@ -134,6 +182,13 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </View>
+        <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+          <View style={{ flex: 1 }}><Button title={avatarUrl ? 'Изменить фото' : 'Поставить фото'} size="md"
+            variant="secondary" onPress={chooseAvatar} loading={avatarBusy} /></View>
+          {avatarUrl ? <Button title="Убрать" size="md" variant="ghost" fullWidth={false}
+            onPress={() => { void removeAvatar(); }} disabled={avatarBusy} /> : null}
+        </View>
+        {avatarError ? <Text variant="caption" tone="danger" style={{ marginTop: spacing.sm }}>{avatarError}</Text> : null}
       </Card>
 
       <StatisticsContent />

@@ -4,7 +4,7 @@ import { jest } from '@jest/globals';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 jest.mock('react-native', () => ({
-  View: 'View', Text: 'Text', TextInput: 'TextInput', Pressable: 'Pressable', Switch: 'Switch', Modal: 'Modal',
+  View: 'View', Text: 'Text', TextInput: 'TextInput', Pressable: 'Pressable', Switch: 'Switch', Modal: 'Modal', Image: 'Image',
   ScrollView: 'ScrollView', RefreshControl: 'RefreshControl', ActivityIndicator: 'ActivityIndicator',
   Platform: { OS: 'web', select: (x: Record<string, unknown>) => x.web ?? x.default },
   useWindowDimensions: () => ({ width: 390, height: 844 }),

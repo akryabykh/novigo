@@ -2,6 +2,7 @@ import { describe, expect, jest, test } from '@jest/globals';
 import { copyTaskIntoPeriod, handleActionPress, isTaskDone, openTaskCounts, taskLogChanges, taskToggleValue } from '../features/goals/task-row-logic';
 import { log, mkGoal } from './fixtures';
 import { applyLog } from '../features/calendar/log-cache';
+import { filterTasksByTag } from '../features/goals/task-tags';
 
 const task = mkGoal({ id: 't', kind: 'task', timeframe: 'day', target: 1 });
 
@@ -59,7 +60,18 @@ describe('task period changes', () => {
     expect(copied.deletes).toEqual([]);
     expect(copied.updates).toEqual([{ id: current.id, title: current.title, target: current.target, weight: 50, endDate: null }]);
     expect(copied.creates).toEqual([{ kind: 'task', title: source.title, timeframe: 'week', target: 1,
-      weight: 50, startDate: '2026-10-05', endDate: '2026-10-11' }]);
+      weight: 50, startDate: '2026-10-05', endDate: '2026-10-11', tag: null }]);
+  });
+
+  test('a copied task keeps its one tag, and filtering does not change the source list', () => {
+    const work = { ...task, tag: 'work' as const };
+    const home = { ...task, id: 'home', tag: 'home' as const };
+    const untagged = { ...task, id: 'none' };
+    expect(copyTaskIntoPeriod(work, [], '2026-10-15').creates[0].tag).toBe('work');
+    const tasks = [work, home, untagged];
+    expect(filterTasksByTag(tasks, 'work')).toEqual([work]);
+    expect(filterTasksByTag(tasks, null)).toEqual([untagged]);
+    expect(filterTasksByTag(tasks, 'all')).toEqual(tasks);
   });
 
   test.each(['day', 'week', 'month'] as const)('%s toggle clears only the selected period and restores completion', (timeframe) => {

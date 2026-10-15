@@ -5,10 +5,12 @@
 // (день/неделя/месяц). Прогресс считается по календарным периодам выбранной
 // даты: день = сама дата, неделя = Пн–Вс этой даты, месяц = календарный месяц.
 //
-// Кольца вложенные (математика НЕ меняется — только привязка к календарю):
+// Для целей кольца вложенные:
 //   • День   = дневные цели за выбранный день (100%).
 //   • Неделя = 60% (как шли дневные цели на этой неделе) + 40% (недельные цели по весам).
 //   • Месяц  = 80% (среднее результатов недель месяца) + 20% (месячные цели по весам).
+// Для задач каждый круг отдельно показывает долю выполненных задач своего
+// календарного периода — это совпадает с правилами медалей.
 // ============================================================
 
 export type Timeframe = 'day' | 'week' | 'month';
@@ -16,6 +18,7 @@ export const TIMEFRAMES: Timeframe[] = ['day', 'week', 'month'];
 
 /** 'goal' — полноценная цель (кол-во, веса); 'task' — задача-галочка. */
 export type GoalKind = 'goal' | 'task';
+export type TaskTag = 'work' | 'rest' | 'home';
 
 export const WEEK_DAYS = 7;
 
@@ -37,6 +40,7 @@ export interface Goal {
   weight: number; // вес внутри своего горизонта, 0..100
   startDate: string; // 'YYYY-MM-DD' — действует с этой даты (не задним числом)
   endDate: string | null; // 'YYYY-MM-DD' включительно, либо null = навсегда
+  tag?: TaskTag | null; // только для задач; не более одного тега
 }
 
 export interface DailyLog {
@@ -247,6 +251,18 @@ export function computeRings(goals: Goal[], logs: DailyLog[], refDate: string = 
   const month = blend(weeksPart, MONTH_WEEKS_WEIGHT, monthPart, MONTH_OWN_WEIGHT) ?? 0;
 
   return { day, week, month };
+}
+
+/** Task rings match medal rules: each ring counts only tasks of its own period. */
+export function computeTaskRings(tasks: Goal[], logs: DailyLog[], refDate: string = todayISO()): Rings {
+  const progress = (timeframe: Timeframe): number => {
+    const scoped = goalsForScope(tasks.filter((task) => task.kind === 'task'), timeframe, refDate);
+    if (scoped.length === 0) return 0;
+    const { start, end } = periodRange(timeframe, refDate);
+    const done = scoped.filter((task) => sumInRange(task.id, logs, start, end) >= task.target).length;
+    return done / scoped.length;
+  };
+  return { day: progress('day'), week: progress('week'), month: progress('month') };
 }
 
 // ---------- ПРОГРЕСС ОТДЕЛЬНОЙ ЦЕЛИ (для плашки + / −) ----------

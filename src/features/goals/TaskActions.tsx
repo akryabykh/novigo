@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 
-import type { Goal, Timeframe } from '../../core/domain';
+import type { Goal, TaskTag, Timeframe } from '../../core/domain';
 import { addDays, startOfMonth, todayISO, weekdayMon0 } from '../../core/logic';
 import { Button, Input, Text } from '../../ui/components';
 import { radius, spacing, timeframeLabel } from '../../ui/theme';
@@ -9,6 +9,7 @@ import { useColors } from '../../ui/theme-provider';
 import { addMonths, periodTitle } from '../calendar/format';
 import { nextTaskPeriod, taskMoveDates } from './task-move';
 import type { TaskMoveInput } from '../offline/sync';
+import { TaskTagPicker } from './TaskTagPicker';
 
 const PERIODS: Timeframe[] = ['day', 'week', 'month'];
 
@@ -19,7 +20,7 @@ export function TaskActions({ task, refDate, locked = false, saving, error, onCl
   saving: boolean;
   error: string | null;
   onClose: () => void;
-  onEdit: (title: string) => void;
+  onEdit: (title: string, tag: TaskTag | null) => void;
   onDelete: () => void;
   onMove: (input: TaskMoveInput) => void;
   onCopy?: () => void;
@@ -27,6 +28,7 @@ export function TaskActions({ task, refDate, locked = false, saving, error, onCl
   const c = useColors();
   const [mode, setMode] = useState<'menu' | 'edit' | 'move' | 'date'>('menu');
   const [title, setTitle] = useState(task.title);
+  const [tag, setTag] = useState<TaskTag | null>(task.tag ?? null);
   const [destination, setDestination] = useState<Timeframe>('day');
   const [selectedDate, setSelectedDate] = useState(refDate);
   const [visibleMonth, setVisibleMonth] = useState(startOfMonth(refDate));
@@ -38,7 +40,7 @@ export function TaskActions({ task, refDate, locked = false, saving, error, onCl
   const saveTitle = () => {
     if (locked) return;
     if (!title.trim()) { setLocalError('Название задачи не может быть пустым'); return; }
-    onEdit(title.trim());
+    onEdit(title.trim(), tag);
   };
   const firstOffset = weekdayMon0(visibleMonth);
   const days = Array.from({ length: 42 }, (_, i) => addDays(visibleMonth, i - firstOffset));
@@ -66,6 +68,7 @@ export function TaskActions({ task, refDate, locked = false, saving, error, onCl
           ) : mode === 'edit' ? (
             <>
               <Input label="Название задачи" value={title} onChangeText={(v) => { setTitle(v); setLocalError(null); }} editable={!saving} />
+              <TaskTagPicker value={tag} onChange={setTag} disabled={saving} />
               <Button title="Сохранить" onPress={saveTitle} loading={saving} />
               <Button title="Назад" variant="secondary" onPress={() => setMode('menu')} disabled={saving} />
             </>

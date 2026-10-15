@@ -20,6 +20,7 @@ const ORDER: Timeframe[] = ['day', 'week', 'month'];
 export function CalendarScaffold({
   cal,
   rings,
+  emptyRings,
   pendingTaskCounts,
   daysWithProgress,
   onSelectScope,
@@ -33,6 +34,7 @@ export function CalendarScaffold({
 }: {
   cal: Calendar;
   rings: Rings;
+  emptyRings?: Record<Timeframe, boolean>;
   pendingTaskCounts?: Record<Timeframe, number>;
   daysWithProgress: Set<string>;
   onSelectScope: (tf: Timeframe) => void;
@@ -110,7 +112,9 @@ export function CalendarScaffold({
                         borderColor: active ? timeframeColor[tf] : c.border,
                         backgroundColor: active ? c.surface : 'transparent',
                       }}>
-                      <ProgressRing progress={rings[tf]} size={84} stroke={8} color={timeframeColor[tf]} />
+                      <ProgressRing progress={rings[tf]} size={84} stroke={8}
+                        color={emptyRings?.[tf] ? c.textMuted : timeframeColor[tf]}
+                        label={emptyRings?.[tf] ? '—' : undefined} />
                       {pendingTaskCounts ? (
                         <View
                           style={{
