@@ -30,6 +30,8 @@ jest.mock('../features/preferences/FeaturePreferences', () => ({
   useFeaturePreferences: () => ({ preferences: { showGoals: false }, ready: true, save: mockSavePreferences }),
 }));
 jest.mock('../features/statistics/StatisticsContent', () => ({ StatisticsContent: () => null }));
+jest.mock('../core/data/avatar-repo', () => ({ getAvatarUrl: jest.fn(async () => null),
+  uploadAvatar: jest.fn(), deleteAvatar: jest.fn() }));
 let tree: ReactTestRenderer;
 let qc: QueryClient;
 async function render(element: ReactElement) {

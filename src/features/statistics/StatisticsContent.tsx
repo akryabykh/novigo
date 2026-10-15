@@ -11,7 +11,7 @@ import { qk } from '../../core/query';
 import { useAuth } from '../../features/auth/auth-provider';
 import { addMonths } from '../../features/calendar/format';
 import { readOffline } from '../../features/offline/store';
-import { bestStreak, medalTier, monthlyStats, type MedalPeriodResult } from '../../features/statistics/logic';
+import { bestStreak, isPerfectPeriod, medalTier, MEDAL_THRESHOLDS, monthlyStats, type MedalPeriodResult } from '../../features/statistics/logic';
 import { medalAssets } from '../../features/statistics/medal-assets';
 import { Button, Card, Text } from '../../ui/components';
 import { radius, spacing } from '../../ui/theme';
@@ -102,10 +102,11 @@ export function StatisticsContent() {
         <>
           <Card>
             <View style={{ gap: spacing.md }}>
-              <Text variant="heading">Периоды на 100%</Text>
-              <Text variant="body">Дни: {month.daysCompleted} из {month.daysTotal}</Text>
-              <Text variant="body">Недели: {month.weeksCompleted} из {month.weeksTotal}</Text>
+              <Text variant="heading">Засчитанные периоды · от 80%</Text>
+              <Text variant="body">Дни: {month.daysCompleted} из {month.daysTotal} · идеально: {month.daysPerfect}</Text>
+              <Text variant="body">Недели: {month.weeksCompleted} из {month.weeksTotal} · идеально: {month.weeksPerfect}</Text>
               <Text variant="caption" tone="muted">Неделя относится к месяцу своего воскресенья.</Text>
+              <Text variant="caption" tone="muted">Ранее закрытые периоды оценивались по правилу 100%.</Text>
             </View>
           </Card>
 
@@ -113,7 +114,10 @@ export function StatisticsContent() {
           <View style={{ gap: spacing.md }}>
             {MEDALS.map(({ timeframe, label: medalLabel, roman }) => {
               const record = bestStreak(results, timeframe);
-              const tier = medalTier(record);
+              const tier = medalTier(record, timeframe);
+              const { silver, gold } = MEDAL_THRESHOLDS[timeframe];
+              const next = record < 1 ? 1 : record < silver ? silver : record < gold ? gold : null;
+              const perfectCount = results.filter((result) => result.timeframe === timeframe && isPerfectPeriod(result)).length;
               return (
                 <Card key={timeframe}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
@@ -128,6 +132,8 @@ export function StatisticsContent() {
                       <Text variant="label" tone={tier ? 'accent' : 'muted'}>
                         {record ? `Рекорд: ${record}` : 'Пока не получена'}
                       </Text>
+                      {next ? <Text variant="caption" tone="muted">Следующий уровень: {next} подряд</Text> : null}
+                      {perfectCount > 0 ? <Text variant="caption" tone="muted">✨ Идеально: {perfectCount}</Text> : null}
                     </View>
                   </View>
                 </Card>

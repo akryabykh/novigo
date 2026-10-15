@@ -7,16 +7,16 @@ const result = spawnSync('npx', ['expo', 'export', '--platform', 'web'], { stdio
 if (result.status !== 0) process.exit(result.status || 1);
 
 const dist = join(process.cwd(), 'dist');
-copyFileSync(join(process.cwd(), 'assets/images/icon.png'), join(dist, 'novigo-icon.png'));
+copyFileSync(join(process.cwd(), 'assets/images/icon.png'), join(dist, 'novigo-icon-blue-v2.png'));
 writeFileSync(join(dist, 'manifest.webmanifest'), JSON.stringify({
   name: 'Novigo', short_name: 'Novigo', start_url: '/', scope: '/', display: 'standalone',
   background_color: '#ffffff', theme_color: '#208AEF',
-  icons: [{ src: '/novigo-icon.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' }],
+  icons: [{ src: '/novigo-icon-blue-v2.png', sizes: '1024x1024', type: 'image/png', purpose: 'any' }],
 }));
 
 const indexPath = join(dist, 'index.html');
 const html = readFileSync(indexPath, 'utf8')
-  .replace('</head>', '<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/novigo-icon.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Novigo"></head>')
+  .replace('</head>', '<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/novigo-icon-blue-v2.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Novigo"></head>')
   .replace('</body>', '<script>window.addEventListener("load", () => { if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {}); if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); });</script></body>');
 writeFileSync(indexPath, html);
 

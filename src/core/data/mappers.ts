@@ -21,6 +21,7 @@ export interface GoalRow {
   weight: number | string;
   start_date: string;
   end_date: string | null;
+  tag?: Goal['tag'];
 }
 export interface DailyLogRow {
   id: string;
@@ -58,6 +59,7 @@ export const toGoal = (r: GoalRow): Goal => ({
   weight: num(r.weight),
   startDate: r.start_date,
   endDate: r.end_date,
+  tag: r.tag ?? null,
 });
 
 export const toDailyLog = (r: DailyLogRow): DailyLog => ({

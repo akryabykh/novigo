@@ -280,11 +280,11 @@ export async function resolveOfflineConflict(uid: string, choice: 'mine' | 'serv
         const desiredIds = new Set(localGoals.map((g) => g.id));
         const input: SaveHorizonInput = {
           updates: localGoals.filter((g) => remoteIds.has(g.id)).map((g) => ({
-            id: g.id, title: g.title, target: g.target, weight: g.weight, endDate: g.endDate,
+            id: g.id, title: g.title, target: g.target, weight: g.weight, endDate: g.endDate, tag: g.tag ?? null,
           })),
           creates: localGoals.filter((g) => !remoteIds.has(g.id)).map((g) => ({
             id: g.id, kind: g.kind, timeframe: g.timeframe, title: g.title, target: g.target,
-            weight: g.weight, startDate: g.startDate, endDate: g.endDate,
+            weight: g.weight, startDate: g.startDate, endDate: g.endDate, tag: g.tag ?? null,
           })),
           deletes: [...new Set([...selectedRemote.filter((g) => !desiredIds.has(g.id)).map((g) => g.id),
             ...op.input.deletes.filter((id) => remoteIds.has(id))])],

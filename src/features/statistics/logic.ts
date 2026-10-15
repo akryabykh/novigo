@@ -7,12 +7,26 @@ export interface MedalPeriodResult {
   periodStart: string;
   periodEnd: string;
   completed: boolean;
+  /** Old cached results have no perfect field; previously completed meant 100%. */
+  perfect?: boolean;
+  completionPercent?: number | null;
 }
 
 export type MedalTier = 'bronze' | 'silver' | 'gold';
 
-export function medalTier(record: number): MedalTier | null {
-  return record >= 100 ? 'gold' : record >= 50 ? 'silver' : record >= 1 ? 'bronze' : null;
+export const MEDAL_THRESHOLDS: Record<Timeframe, { silver: number; gold: number }> = {
+  day: { silver: 7, gold: 30 },
+  week: { silver: 4, gold: 12 },
+  month: { silver: 3, gold: 6 },
+};
+
+export function medalTier(record: number, timeframe: Timeframe): MedalTier | null {
+  const { silver, gold } = MEDAL_THRESHOLDS[timeframe];
+  return record >= gold ? 'gold' : record >= silver ? 'silver' : record >= 1 ? 'bronze' : null;
+}
+
+export function isPerfectPeriod(result: MedalPeriodResult): boolean {
+  return result.perfect ?? result.completed;
 }
 
 function nextPeriod(start: string, timeframe: Timeframe): string {
@@ -46,8 +60,10 @@ export function monthlyStats(results: MedalPeriodResult[], date: string) {
   }
   return {
     daysCompleted: results.filter((r) => r.timeframe === 'day' && r.completed && r.periodEnd >= first && r.periodEnd <= last).length,
+    daysPerfect: results.filter((r) => r.timeframe === 'day' && isPerfectPeriod(r) && r.periodEnd >= first && r.periodEnd <= last).length,
     daysTotal,
     weeksCompleted: results.filter((r) => r.timeframe === 'week' && r.completed && r.periodEnd >= first && r.periodEnd <= last).length,
+    weeksPerfect: results.filter((r) => r.timeframe === 'week' && isPerfectPeriod(r) && r.periodEnd >= first && r.periodEnd <= last).length,
     weeksTotal,
   };
 }

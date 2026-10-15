@@ -13,6 +13,7 @@ import { radius, spacing, timeframeColor, timeframeLabel } from '../../ui/theme'
 import { useColors } from '../../ui/theme-provider';
 
 import { isRealDate, parseWeight } from './editor-validation';
+import { TaskTagPicker } from './TaskTagPicker';
 
 interface Row {
   key: string;
@@ -22,6 +23,7 @@ interface Row {
   weight: string;
   startDate: string;
   endDate: string | null;
+  tag: Goal['tag'];
 }
 
 const MONTHS_GEN = [
@@ -48,6 +50,7 @@ const blankRow = (start: string): Row => ({
   weight: '',
   startDate: start,
   endDate: null,
+  tag: null,
 });
 // Кол-во ограничено 1–9; всё вне диапазона (старые данные) приводим к 1.
 const clampCount = (n: number): number => (Number.isInteger(n) && n >= 1 && n <= 9 ? n : 1);
@@ -74,6 +77,7 @@ const fromGoal = (g: Goal): Row => ({
   weight: String(g.weight),
   startDate: g.startDate,
   endDate: g.endDate,
+  tag: g.tag ?? null,
 });
 
 export interface SavePayload {
@@ -164,9 +168,10 @@ export function HorizonEditor({
       const target = isTask ? 1 : p.target;
       const weight = isTask ? taskWeights[i] : p.weight;
       const endDate = isTask && !p.row.id ? taskEnd(p.row.startDate) : p.row.endDate;
-      if (p.row.id) updates.push({ id: p.row.id, title: p.title, target, weight, endDate });
+      if (p.row.id) updates.push({ id: p.row.id, title: p.title, target, weight, endDate, ...(isTask ? { tag: p.row.tag ?? null } : {}) });
       else
-        creates.push({ kind, title: p.title, timeframe: scope, target, weight, startDate: p.row.startDate, endDate });
+        creates.push({ kind, title: p.title, timeframe: scope, target, weight, startDate: p.row.startDate, endDate,
+          ...(isTask ? { tag: p.row.tag ?? null } : {}) });
     });
     const keptIds = new Set(rows.map((r) => r.id).filter(Boolean) as string[]);
     const deletes = originalIds.filter((id) => !keptIds.has(id));
@@ -275,6 +280,8 @@ export function HorizonEditor({
                 <TrashIcon size={20} color={c.danger} strokeWidth={1.8} />
               </Pressable>
             </View>
+
+            {isTask ? <TaskTagPicker value={r.tag ?? null} onChange={(tag) => update(r.key, { tag })} disabled={saving} /> : null}
 
             {/* row 2 (goals only): кол-во + вес % + период. tasks are checkbox-only. */}
             {!isTask ? (

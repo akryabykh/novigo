@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import type { Goal } from '../../../core/domain';
+import type { Goal, TaskTag } from '../../../core/domain';
 import {
   canLogOn,
-  computeRings,
+  computeTaskRings,
   equalWeights,
   goalCurrent,
   goalsForScope,
@@ -16,10 +16,11 @@ import { useCalendar } from '../../../features/calendar/useCalendar';
 import { useOptimisticLog } from '../../../features/calendar/useOptimisticLog';
 import { HorizonEditor, type SavePayload } from '../../../features/goals/HorizonEditor';
 import { TaskActions } from '../../../features/goals/TaskActions';
-import { copyTaskIntoPeriod, openTaskCounts, taskLogChanges } from '../../../features/goals/task-row-logic';
+import { copyTaskIntoPeriod, openTaskCounts } from '../../../features/goals/task-row-logic';
 import { TaskRow } from '../../../features/goals/TaskRow';
+import { filterTasksByTag, TASK_TAGS } from '../../../features/goals/task-tags';
 import { useMoveTask, useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
-import { Button, EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
+import { EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
 import { confirmAction } from '../../../ui/confirm';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
@@ -47,12 +48,18 @@ export default function TasksScreen() {
   const [editing, setEditing] = useState(false);
   const [addNew, setAddNew] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Goal | null>(null);
+  const [tagFilter, setTagFilter] = useState<TaskTag | null | 'all'>('all');
 
   const logs = useMemo(() => ws?.logs ?? [], [ws]);
   const tasks = useMemo(() => (ws ? ws.goals.filter((g) => g.kind === 'task') : []), [ws]);
   const taskIds = useMemo(() => new Set(tasks.map((g) => g.id)), [tasks]);
 
-  const rings = useMemo(() => computeRings(tasks, logs, refDate), [tasks, logs, refDate]);
+  const rings = useMemo(() => computeTaskRings(tasks, logs, refDate), [tasks, logs, refDate]);
+  const emptyRings = useMemo(() => ({
+    day: goalsForScope(tasks, 'day', refDate).length === 0,
+    week: goalsForScope(tasks, 'week', refDate).length === 0,
+    month: goalsForScope(tasks, 'month', refDate).length === 0,
+  }), [tasks, refDate]);
   const pendingTaskCounts = useMemo(() => openTaskCounts(tasks, logs, refDate), [tasks, logs, refDate]);
   const daysWithProgress = useMemo(() => {
     const s = new Set<string>();
@@ -62,17 +69,13 @@ export default function TasksScreen() {
 
   const selectedTasks = goalsForScope(tasks, scope, refDate);
   // done tasks sink to the bottom
-  const orderedTasks = [...selectedTasks].sort((a, b) => {
+  const orderedTasks = filterTasksByTag(selectedTasks, tagFilter).sort((a, b) => {
     const da = goalCurrent(a, logs, refDate) >= a.target ? 1 : 0;
     const db = goalCurrent(b, logs, refDate) >= b.target ? 1 : 0;
     return da - db;
   });
   const writable = (t: Goal) => canLogOn(t, refDate, today);
-  const writableSelected = selectedTasks.filter(writable);
   const hasAnyTasks = tasks.length > 0;
-
-  const doneAll = () => logValues(writableSelected.filter((g) => canLogOn(g, refDate)).flatMap((g) => taskLogChanges(g, logs, refDate, true)));
-  const clearAll = () => logValues(writableSelected.filter((g) => canLogOn(g, refDate)).flatMap((g) => taskLogChanges(g, logs, refDate, false)));
 
   const closeEditor = () => {
     setEditing(false);
@@ -87,10 +90,10 @@ export default function TasksScreen() {
   const submitHorizon = (payload: SavePayload) => saveGoals.mutate(payload, { onSuccess: closeEditor });
 
   const closeActions = () => { setSelectedTask(null); saveGoals.reset(); copyTask.reset(); moveTask.reset(); };
-  const editTask = (title: string) => {
+  const editTask = (title: string, tag: TaskTag | null) => {
     if (!selectedTask) return;
     saveGoals.mutate({ updates: [{ id: selectedTask.id, title, target: 1, weight: selectedTask.weight,
-      endDate: selectedTask.endDate }], creates: [], deletes: [] }, { onSuccess: closeActions });
+      endDate: selectedTask.endDate, tag }], creates: [], deletes: [] }, { onSuccess: closeActions });
   };
 
   const deleteTask = async (task: Goal) => {
@@ -112,6 +115,7 @@ export default function TasksScreen() {
       cal={cal}
       navigationDisabled={editing || !!selectedTask || saveGoals.isPending || copyTask.isPending || moveTask.isPending}
       rings={rings}
+      emptyRings={emptyRings}
       pendingTaskCounts={pendingTaskCounts}
       daysWithProgress={daysWithProgress}
       onSelectScope={(tf) => {
@@ -171,6 +175,21 @@ export default function TasksScreen() {
             ) : null}
           </View>
 
+          {hasAnyTasks ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+              {[{ value: 'all' as const, label: 'Все' }, ...TASK_TAGS, { value: null, label: 'Без тега' }].map((option) => {
+                const active = tagFilter === option.value;
+                return <Pressable key={option.label} accessibilityRole="button" accessibilityState={{ selected: active }}
+                  onPress={() => setTagFilter(option.value)}
+                  style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md,
+                    backgroundColor: active ? c.accentSoft : c.surfaceAlt,
+                    borderWidth: 1, borderColor: active ? c.accent : c.border }}>
+                  <Text variant="caption" style={{ color: active ? c.accent : c.textMuted }}>{option.label}</Text>
+                </Pressable>;
+              })}
+            </View>
+          ) : null}
+
           {!hasAnyTasks ? (
             <EmptyState
               emoji="✅"
@@ -197,18 +216,10 @@ export default function TasksScreen() {
                 <Text variant="body" tone="muted">
                   На «{timeframeLabel[scope].toLowerCase()}» задач нет.
                 </Text>
+              ) : orderedTasks.length === 0 ? (
+                <Text variant="body" tone="muted">По выбранному тегу задач нет.</Text>
               ) : null}
 
-              {writableSelected.length > 0 ? (
-                <View style={{ flexDirection: 'row', gap: spacing.md }}>
-                  <View style={{ flex: 1 }}>
-                    <Button title="Отметить всё" variant="secondary" onPress={doneAll} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Button title="Очистить" variant="ghost" onPress={clearAll} />
-                  </View>
-                </View>
-              ) : null}
             </View>
           )}
           {selectedTask ? (

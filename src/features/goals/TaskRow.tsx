@@ -11,6 +11,7 @@ import { spacing, timeframeColor, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
 import type { LogInput } from '../calendar/log-cache';
 import { handleActionPress, isTaskDone, taskLogChanges } from './task-row-logic';
+import { taskTagLabel } from './task-tags';
 
 export function TaskRow({
   task,
@@ -58,17 +59,13 @@ export function TaskRow({
             }}>
             {done ? <CheckIcon size={16} color="#fff" strokeWidth={3} /> : null}
           </View>
-          <Text
-            variant="label"
-            style={{
-              flex: 1,
-              color: done ? c.textFaint : c.text,
-              textDecorationLine: done ? 'line-through' : 'none',
-              fontFamily: typography.regular,
-            }}
-            numberOfLines={2}>
-            {task.title}
-          </Text>
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text variant="label" style={{ color: done ? c.textFaint : c.text,
+              textDecorationLine: done ? 'line-through' : 'none', fontFamily: typography.regular }} numberOfLines={2}>
+              {task.title}
+            </Text>
+            {taskTagLabel(task.tag) ? <Text variant="caption" tone="accent">{taskTagLabel(task.tag)}</Text> : null}
+          </View>
         </Pressable>
         {onActions ? (
           <Pressable accessibilityLabel={`Действия с задачей ${task.title}`} onPress={openActions} hitSlop={8} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>

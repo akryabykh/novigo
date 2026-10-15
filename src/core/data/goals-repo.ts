@@ -31,6 +31,7 @@ export interface NewGoal {
   weight: number;
   startDate: string;
   endDate: string | null;
+  tag?: Goal['tag'];
 }
 
 /** Patch shape for an existing goal (kind & timeframe are immutable after creation). */
@@ -40,6 +41,7 @@ export interface GoalPatch {
   target: number;
   weight: number;
   endDate: string | null;
+  tag?: Goal['tag'];
 }
 
 export interface SaveHorizonInput {
@@ -62,6 +64,7 @@ export async function saveHorizon(input: SaveHorizonInput): Promise<void> {
       target: u.target,
       weight: u.weight,
       endDate: u.endDate,
+      ...(u.tag !== undefined ? { tag: u.tag } : {}),
     })),
     p_creates: input.creates.map((c) => ({
       kind: c.kind,
@@ -71,6 +74,7 @@ export async function saveHorizon(input: SaveHorizonInput): Promise<void> {
       weight: c.weight,
       startDate: c.startDate,
       endDate: c.endDate,
+      tag: c.tag ?? null,
     })),
     p_deletes: input.deletes,
   });
