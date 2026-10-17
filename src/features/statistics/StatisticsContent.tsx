@@ -104,6 +104,7 @@ export function StatisticsContent() {
             <View style={{ gap: spacing.md }}>
               <Text variant="heading">Засчитанные периоды · от 80%</Text>
               <Text variant="body">Дни: {month.daysCompleted} из {month.daysTotal} · идеально: {month.daysPerfect}</Text>
+              <Text variant="caption" tone="muted">Выходные: {month.daysRest}. Они не засчитываются как закрытые дни и не прерывают серию.</Text>
               <Text variant="body">Недели: {month.weeksCompleted} из {month.weeksTotal} · идеально: {month.weeksPerfect}</Text>
               <Text variant="caption" tone="muted">Неделя относится к месяцу своего воскресенья.</Text>
               <Text variant="caption" tone="muted">Ранее закрытые периоды оценивались по правилу 100%.</Text>

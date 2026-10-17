@@ -2,6 +2,7 @@ import { describe, test, expect, jest } from '@jest/globals';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { CalendarScaffold } from '../features/calendar/CalendarScaffold';
+import { DayWheel } from '../features/calendar/DayWheel';
 import { HorizonEditor } from '../features/goals/HorizonEditor';
 import { isRealDate, parseWeight } from '../features/goals/editor-validation';
 import type { Goal, Timeframe } from '../core/domain';
@@ -21,6 +22,20 @@ const singlePeriodTaskCases: [Timeframe, string, string, string][] = [
 ];
 
 describe('editor safety', () => {
+  test('tapping a visible day changes the selection without shifting the date strip', async () => {
+    const onSelect = jest.fn();
+    const props = { today: '2026-10-17', daysWithProgress: new Set<string>(), disabled: false, onSelect };
+    let tree: any;
+    await act(async () => { tree = create(<DayWheel {...props} refDate="2026-10-17" />); });
+    const dates = () => tree.root.findAllByType('Pressable').map((node: any) => node.props.children[1].props.children);
+    const before = dates();
+    const adjacent = tree.root.findAllByType('Pressable')[31];
+    await act(async () => { adjacent.props.onPress(); });
+    expect(onSelect).toHaveBeenCalledWith('2026-10-18');
+    await act(async () => { tree.update(<DayWheel {...props} refDate="2026-10-18" />); });
+    expect(dates()).toEqual(before);
+    await act(async () => { tree.unmount(); });
+  });
   test.each(singlePeriodTaskCases)('%s task stays within its selected period', async (scope, selected, startDate, endDate) => {
     const onSave = jest.fn();
     let tree: any;

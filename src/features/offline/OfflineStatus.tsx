@@ -68,7 +68,9 @@ export function OfflineStatus({ uid }: { uid: string | undefined }) {
     })();
   };
   const title = state.conflict
-    ? 'Есть разные изменения на двух устройствах'
+    ? state.conflictType === 'rest'
+      ? 'Не удалось сохранить выходной: день уже закрыт или на нём есть задачи'
+      : 'Есть разные изменения на двух устройствах'
     : state.error ? state.error
     : !online ? `Без сети · ${state.pending ? `ожидают отправки: ${state.pending}` : 'данные на устройстве'}`
     : `Сохранено на устройстве · ожидают отправки: ${state.pending}`;
@@ -78,7 +80,8 @@ export function OfflineStatus({ uid }: { uid: string | undefined }) {
       {resolutionError ? <Text variant="label">Не удалось получить данные сервера. Попробуй ещё раз.</Text> : null}
       {state.conflict ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Button title="Оставить мои" size="md" fullWidth={false} disabled={resolving || !online} onPress={() => choose('mine')} />
+          {state.conflictType !== 'rest' ? <Button title="Оставить мои" size="md" fullWidth={false}
+            disabled={resolving || !online} onPress={() => choose('mine')} /> : null}
           <Button title="Взять с сервера" size="md" variant="secondary" fullWidth={false} disabled={resolving || !online} onPress={() => choose('server')} />
         </View>
       ) : state.error && online ? (

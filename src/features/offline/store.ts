@@ -8,7 +8,8 @@ export type OfflineOperation =
   | { id: string; type: 'horizon'; userId: string; kind: GoalKind; timeframe: Timeframe; refDate: string; expectedRevision: number; input: SaveHorizonInput }
   | { id: string; type: 'move'; taskId: string; from: Timeframe; to: Timeframe; startDate: string; endDate: string;
       expectedSourceRevision: number; expectedDestinationRevision: number }
-  | { id: string; type: 'logs'; changes: StoredLog[] };
+  | { id: string; type: 'logs'; changes: StoredLog[] }
+  | { id: string; type: 'rest'; day: string; enabled: boolean; timeZone: string; requestedAt: string };
 
 export interface OfflineRecord {
   updatedAt?: number;
@@ -25,8 +26,8 @@ const pending = new Map<string, Promise<unknown>>();
 const listeners = new Set<() => void>();
 let dbPromise: Promise<IDBDatabase> | null = null;
 let dbUnavailable = false;
-let status: Record<string, { pending: number; conflict: boolean; error: string | null }> = {};
-const emptyStatus = { pending: 0, conflict: false, error: null };
+let status: Record<string, { pending: number; conflict: boolean; conflictType: OfflineOperation['type'] | null; error: string | null }> = {};
+const emptyStatus = { pending: 0, conflict: false, conflictType: null, error: null };
 const backupKey = (uid: string) => `novigo.offline.${uid}`;
 
 function readBackup(uid: string): OfflineRecord {
@@ -69,7 +70,8 @@ function writeBackup(uid: string, record: OfflineRecord): void {
 export const subscribeOffline = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
 export const getOfflineStatus = (uid: string) => status[uid] ?? emptyStatus;
 function publish(uid: string, record: OfflineRecord) {
-  status = { ...status, [uid]: { pending: record.operations.length, conflict: !!record.conflictId, error: record.error } };
+  status = { ...status, [uid]: { pending: record.operations.length, conflict: !!record.conflictId,
+    conflictType: record.operations.find((op) => op.id === record.conflictId)?.type ?? null, error: record.error } };
   listeners.forEach((fn) => fn());
 }
 

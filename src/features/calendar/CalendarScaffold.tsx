@@ -23,6 +23,7 @@ export function CalendarScaffold({
   emptyRings,
   pendingTaskCounts,
   daysWithProgress,
+  restDays,
   onSelectScope,
   navigationDisabled = false,
   isError,
@@ -37,6 +38,7 @@ export function CalendarScaffold({
   emptyRings?: Record<Timeframe, boolean>;
   pendingTaskCounts?: Record<Timeframe, number>;
   daysWithProgress: Set<string>;
+  restDays?: Set<string>;
   onSelectScope: (tf: Timeframe) => void;
   navigationDisabled?: boolean;
   isError: boolean;
@@ -82,7 +84,7 @@ export function CalendarScaffold({
           ) : (
             <>
               <DayWheel key={wheelReset} refDate={refDate} today={today} onSelect={setRefDate}
-                daysWithProgress={daysWithProgress} disabled={navigationDisabled} />
+                daysWithProgress={daysWithProgress} restDays={restDays} disabled={navigationDisabled} />
               <View {...swipe.panHandlers} style={{ gap: spacing.lg, flexGrow: 1 }}>
 
               {/* period navigator */}

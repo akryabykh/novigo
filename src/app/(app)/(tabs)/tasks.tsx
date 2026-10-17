@@ -19,8 +19,8 @@ import { TaskActions } from '../../../features/goals/TaskActions';
 import { copyTaskIntoPeriod, openTaskCounts } from '../../../features/goals/task-row-logic';
 import { TaskRow } from '../../../features/goals/TaskRow';
 import { filterTasksByTag, TASK_TAGS } from '../../../features/goals/task-tags';
-import { useMoveTask, useSaveGoals, useWorkspace, type GoalUpdate } from '../../../features/queries';
-import { EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
+import { useMoveTask, useSaveGoals, useSetRestDay, useWorkspace, type GoalUpdate } from '../../../features/queries';
+import { Button, Card, EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
 import { confirmAction } from '../../../ui/confirm';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
@@ -44,6 +44,7 @@ export default function TasksScreen() {
   const saveGoals = useSaveGoals(uid, 'task', scope, refDate);
   const copyTask = useSaveGoals(uid, 'task', scope, today);
   const moveTask = useMoveTask(uid);
+  const restDay = useSetRestDay(uid);
 
   const [editing, setEditing] = useState(false);
   const [addNew, setAddNew] = useState(false);
@@ -68,6 +69,7 @@ export default function TasksScreen() {
   }, [logs, taskIds]);
 
   const selectedTasks = goalsForScope(tasks, scope, refDate);
+  const isRestDay = scope === 'day' && selectedTasks.length === 0 && (ws?.restDays ?? []).includes(refDate);
   // done tasks sink to the bottom
   const orderedTasks = filterTasksByTag(selectedTasks, tagFilter).sort((a, b) => {
     const da = goalCurrent(a, logs, refDate) >= a.target ? 1 : 0;
@@ -113,11 +115,12 @@ export default function TasksScreen() {
   return (
     <CalendarScaffold
       cal={cal}
-      navigationDisabled={editing || !!selectedTask || saveGoals.isPending || copyTask.isPending || moveTask.isPending}
+      navigationDisabled={editing || !!selectedTask || saveGoals.isPending || copyTask.isPending || moveTask.isPending || restDay.isPending}
       rings={rings}
       emptyRings={emptyRings}
       pendingTaskCounts={pendingTaskCounts}
       daysWithProgress={daysWithProgress}
+      restDays={new Set(ws?.restDays ?? [])}
       onSelectScope={(tf) => {
         cal.setScope(tf);
         closeEditor();
@@ -153,7 +156,7 @@ export default function TasksScreen() {
             <Text variant="heading" style={{ flex: 1 }}>
               Задачи · {timeframeLabel[scope].toLowerCase()}
             </Text>
-            {hasAnyTasks ? (
+            {hasAnyTasks && !isRestDay ? (
               <Pressable
                 onPress={openAdd}
                 hitSlop={6}
@@ -175,7 +178,7 @@ export default function TasksScreen() {
             ) : null}
           </View>
 
-          {hasAnyTasks ? (
+          {hasAnyTasks && !isRestDay ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
               {[{ value: 'all' as const, label: 'Все' }, ...TASK_TAGS, { value: null, label: 'Без тега' }].map((option) => {
                 const active = tagFilter === option.value;
@@ -190,7 +193,21 @@ export default function TasksScreen() {
             </View>
           ) : null}
 
-          {!hasAnyTasks ? (
+          {scope === 'day' && selectedTasks.length === 0 && refDate >= today ? (
+            isRestDay ? <Card style={{ gap: spacing.sm }}>
+              <Text variant="heading">🌿 Выходной</Text>
+              <Text variant="caption" tone="muted">День не прибавит медаль, но сохранит серию.</Text>
+              <Button title="Отменить выходной" variant="secondary" size="md" loading={restDay.isPending}
+                onPress={() => restDay.mutate({ day: refDate, enabled: false })} />
+            </Card> : <Button title="Сделать выходным" variant="secondary" size="md"
+              loading={restDay.isPending} onPress={() => restDay.mutate({ day: refDate, enabled: true })} />
+          ) : isRestDay ? <Card>
+            <Text variant="heading">🌿 Выходной</Text>
+            <Text variant="caption" tone="muted">Этот день уже закрыт. Серия сохранена.</Text>
+          </Card> : null}
+          {restDay.isError ? <Text variant="caption" tone="danger">{restDay.error.message}</Text> : null}
+
+          {isRestDay ? null : !hasAnyTasks ? (
             <EmptyState
               emoji="✅"
               title="Задач пока нет"

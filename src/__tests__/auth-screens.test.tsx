@@ -27,7 +27,9 @@ jest.mock('../features/queries', () => ({
   useUpdateNames: () => ({ mutate:mockMutate, isPending:false }),
 }));
 jest.mock('../features/preferences/FeaturePreferences', () => ({
-  useFeaturePreferences: () => ({ preferences: { showGoals: false }, ready: true, save: mockSavePreferences }),
+  useFeaturePreferences: () => ({ preferences: { tabs: ['tasks', 'counter'] }, ready: true, save: mockSavePreferences }),
+  FEATURE_TABS: ['tasks', 'goals', 'counter', 'stopwatch'],
+  FEATURE_TAB_LABELS: { tasks: 'Задачи', goals: 'Цели', counter: 'Счётчик', stopwatch: 'Секундомер' },
 }));
 jest.mock('../features/statistics/StatisticsContent', () => ({ StatisticsContent: () => null }));
 jest.mock('../core/data/avatar-repo', () => ({ getAvatarUrl: jest.fn(async () => null),
@@ -87,11 +89,11 @@ test('profile saves trimmed names and clears success when the draft changes', as
   await input('Имя','Unsaved'); expect(text()).not.toContain('Сохранено');
 });
 
-test('goals tab preference changes only after pressing Save settings', async()=>{
+test('bottom tab preference changes only after pressing Save settings', async()=>{
   mockSavePreferences.mockResolvedValue(undefined);
   await render(<ProfileScreen />);
-  await act(async()=>tree.root.findAll(n=>String(n.type)==='Switch')[0].props.onValueChange(true));
+  await act(async()=>tree.root.findAll(n=>String(n.type)==='Switch').find(n=>n.props.accessibilityLabel==='Цели')!.props.onValueChange(true));
   expect(mockSavePreferences).not.toHaveBeenCalled();
   await press('Сохранить настройки');
-  expect(mockSavePreferences).toHaveBeenCalledWith({showGoals:true});
+  expect(mockSavePreferences).toHaveBeenCalledWith({tabs:['tasks','counter','goals']});
 });

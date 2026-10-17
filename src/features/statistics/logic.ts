@@ -10,6 +10,7 @@ export interface MedalPeriodResult {
   /** Old cached results have no perfect field; previously completed meant 100%. */
   perfect?: boolean;
   completionPercent?: number | null;
+  restDay?: boolean;
 }
 
 export type MedalTier = 'bronze' | 'silver' | 'gold';
@@ -35,7 +36,7 @@ function nextPeriod(start: string, timeframe: Timeframe): string {
     : addMonths(start, 1);
 }
 
-/** Only finalized results are passed in. A missing or empty period breaks the run. */
+/** A planned empty rest day pauses a daily run; other empty or missing periods break it. */
 export function bestStreak(results: MedalPeriodResult[], timeframe: Timeframe): number {
   const ordered = results.filter((result) => result.timeframe === timeframe)
     .sort((a, b) => a.periodStart.localeCompare(b.periodStart));
@@ -43,7 +44,12 @@ export function bestStreak(results: MedalPeriodResult[], timeframe: Timeframe): 
   let streak = 0;
   let previous: string | null = null;
   for (const period of ordered) {
-    streak = period.completed ? (previous && period.periodStart === nextPeriod(previous, timeframe) ? streak + 1 : 1) : 0;
+    const adjacent = previous && period.periodStart === nextPeriod(previous, timeframe);
+    if (period.restDay && timeframe === 'day') {
+      if (!adjacent) streak = 0;
+    } else {
+      streak = period.completed ? (adjacent ? streak + 1 : 1) : 0;
+    }
     best = Math.max(best, streak);
     previous = period.periodStart;
   }
@@ -54,6 +60,7 @@ export function monthlyStats(results: MedalPeriodResult[], date: string) {
   const first = startOfMonth(date);
   const last = endOfMonth(date);
   const daysTotal = Number(last.slice(-2));
+  const daysRest = results.filter((r) => r.timeframe === 'day' && r.restDay && r.periodEnd >= first && r.periodEnd <= last).length;
   let weeksTotal = 0;
   for (let d = first; d <= last; d = addDays(d, 1)) {
     if (weekdayMon0(d) === 6) weeksTotal++;
@@ -61,7 +68,8 @@ export function monthlyStats(results: MedalPeriodResult[], date: string) {
   return {
     daysCompleted: results.filter((r) => r.timeframe === 'day' && r.completed && r.periodEnd >= first && r.periodEnd <= last).length,
     daysPerfect: results.filter((r) => r.timeframe === 'day' && isPerfectPeriod(r) && r.periodEnd >= first && r.periodEnd <= last).length,
-    daysTotal,
+    daysTotal: daysTotal - daysRest,
+    daysRest,
     weeksCompleted: results.filter((r) => r.timeframe === 'week' && r.completed && r.periodEnd >= first && r.periodEnd <= last).length,
     weeksPerfect: results.filter((r) => r.timeframe === 'week' && isPerfectPeriod(r) && r.periodEnd >= first && r.periodEnd <= last).length,
     weeksTotal,

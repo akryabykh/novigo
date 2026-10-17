@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
@@ -132,8 +131,6 @@ function CounterContent({ uid }: { uid: string | undefined }) {
   };
 
   const header = <View style={{ paddingTop: spacing.md, gap: spacing.xs }}>
-    <Button title="‹ Приложения" size="md" variant="ghost" fullWidth={false}
-      onPress={() => router.navigate('/(app)/(tabs)/apps')} />
     <Text variant="title">Счётчики</Text>
     <Text variant="caption" tone="muted">Работают без сети и синхронизируются между устройствами.</Text>
   </View>;
