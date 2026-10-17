@@ -13,11 +13,12 @@ const CENTER = 30;
 const EDGE = 8;
 const SHIFT = 20;
 
-export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled }: {
+export function DayWheel({ refDate, today, onSelect, daysWithProgress, restDays, disabled }: {
   refDate: string;
   today: string;
   onSelect: (date: string) => void;
   daysWithProgress: Set<string>;
+  restDays?: Set<string>;
   disabled: boolean;
 }) {
   const c = useColors();
@@ -28,6 +29,7 @@ export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled 
   const pendingOffset = useRef<number | null>(null);
   const lastWheel = useRef(0);
   const previousSelected = useRef(refDate);
+  const selectedByTap = useRef<string | null>(null);
   const days = Array.from({ length: COUNT }, (_, index) => addDays(windowStart, index));
 
   // Extend the visible dates without changing the selected calendar period.
@@ -54,6 +56,11 @@ export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled 
   useEffect(() => {
     if (previousSelected.current === refDate) return;
     previousSelected.current = refDate;
+    if (selectedByTap.current === refDate) {
+      selectedByTap.current = null;
+      return;
+    }
+    selectedByTap.current = null;
     pendingOffset.current = CENTER * ITEM_WIDTH;
     setWindowStart(addDays(refDate, -CENTER));
   }, [refDate]);
@@ -96,11 +103,14 @@ export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled 
           const active = date === refDate;
           const isToday = date === today;
           return (
-            <Pressable key={date} disabled={disabled} onPress={() => onSelect(date)}
+            <Pressable key={date} disabled={disabled} onPress={() => {
+              if (date !== refDate) selectedByTap.current = date;
+              onSelect(date);
+            }}
               style={{ width: ITEM_WIDTH, alignItems: 'center', gap: 3,
                 paddingVertical: spacing.sm, borderRadius: radius.md,
                 backgroundColor: active ? c.accent : 'transparent',
-                borderWidth: !active && isToday ? 1.5 : 0, borderColor: c.accent }}>
+                borderWidth: 1.5, borderColor: !active && isToday ? c.accent : 'transparent' }}>
               <Text variant="caption" style={{ color: active ? '#fff' : c.textFaint }}>
                 {WEEKDAYS_SHORT[weekdayMon0(date)]}
               </Text>
@@ -108,7 +118,8 @@ export function DayWheel({ refDate, today, onSelect, daysWithProgress, disabled 
                 {dayNum(date)}
               </Text>
               <View style={{ width: 5, height: 5, borderRadius: 3,
-                backgroundColor: daysWithProgress.has(date) ? (active ? '#fff' : c.accent) : 'transparent' }} />
+                backgroundColor: restDays?.has(date) ? (active ? '#fff' : c.success)
+                  : daysWithProgress.has(date) ? (active ? '#fff' : c.accent) : 'transparent' }} />
             </Pressable>
           );
         })}

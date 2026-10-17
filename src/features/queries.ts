@@ -13,20 +13,23 @@ import {
 } from '../core/data';
 import type { DailyLog, Goal, GoalKind, Timeframe } from '../core/domain';
 import { qk } from '../core/query';
+import { listRestDays, setRestDay } from '../core/data/rest-days-repo';
 import { syncGamification } from './gamification/sync';
 import { overlayPendingLogs } from './calendar/log-writer';
-import { loadOfflineWorkspace, overlayOperations, queueHorizon, queueTaskMove, type TaskMoveInput } from './offline/sync';
+import { loadOfflineWorkspace, overlayOperations, queueHorizon, queueRestDay, queueTaskMove, type TaskMoveInput } from './offline/sync';
 import { peekOffline, readOffline, updateOffline } from './offline/store';
 
 export interface Workspace {
   goals: Goal[];
   logs: DailyLog[];
+  restDays?: string[];
   revisions?: Record<string, number>;
 }
 
 async function loadNativeWorkspace(uid: string): Promise<Workspace> {
   const goals = await listGoalsByUser(uid);
-  return { goals, logs: await listLogsByGoals(goals.map((g) => g.id)) };
+  const [logs, restDays] = await Promise.all([listLogsByGoals(goals.map((g) => g.id)), listRestDays(uid)]);
+  return { goals, logs, restDays };
 }
 
 /** Re-exported so the editor/screens keep a single name for a goal patch. */
@@ -110,6 +113,21 @@ export function useMoveTask(uid: string | undefined) {
   return useMutation({
     networkMode: Platform.OS === 'web' ? 'always' : 'online',
     mutationFn: (input: TaskMoveInput) => queueTaskMove(uid!, input, qc),
+    onSuccess: () => { if (uid) void qc.invalidateQueries({ queryKey: qk.workspace(uid) }); },
+  });
+}
+
+export function useSetRestDay(uid: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    networkMode: Platform.OS === 'web' ? 'always' : 'online',
+    mutationFn: ({ day, enabled }: { day: string; enabled: boolean }) => {
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const requestedAt = new Date().toISOString();
+      return Platform.OS === 'web'
+        ? queueRestDay(uid!, day, enabled, timeZone, requestedAt, qc)
+        : setRestDay(day, enabled, timeZone, requestedAt);
+    },
     onSuccess: () => { if (uid) void qc.invalidateQueries({ queryKey: qk.workspace(uid) }); },
   });
 }

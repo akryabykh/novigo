@@ -21,7 +21,7 @@ import { queryClient } from '../core/query';
 import { AuthProvider, useAuth } from '../features/auth/auth-provider';
 import { useProfile, useWorkspace } from '../features/queries';
 import { OfflineStatus } from '../features/offline/OfflineStatus';
-import { FeaturePreferencesProvider, useFeaturePreferences } from '../features/preferences/FeaturePreferences';
+import { FeaturePreferencesProvider, launchTab, useFeaturePreferences } from '../features/preferences/FeaturePreferences';
 import { EmptyState } from '../ui/components';
 import { SetupNotice } from '../ui/SetupNotice';
 import { spacing } from '../ui/theme';
@@ -34,7 +34,7 @@ function RootGate() {
   const uid = session?.user?.id;
   const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile(uid);
   const { isLoading: workspaceLoading } = useWorkspace(profile ? uid : undefined);
-  const { ready: preferencesReady } = useFeaturePreferences();
+  const { preferences, ready: preferencesReady } = useFeaturePreferences();
   const { ready: themeReady } = useTheme();
   const segments = useSegments();
   const router = useRouter();
@@ -53,7 +53,7 @@ function RootGate() {
     // Don't route while the profile is loading OR errored. A network error must
     // NOT be treated as "no profile" — that would wrongly bounce the user to
     // complete-profile. On error we show a retry screen (below) instead.
-    if (profileLoading || profileError) return;
+    if (profileLoading || profileError || !preferencesReady) return;
     if (!profile) {
       // Session + confirmed no profile row → the name step must finish. The
       // register / complete-profile screens handle it themselves; from anywhere
@@ -63,9 +63,10 @@ function RootGate() {
     }
     if (!openedTasks.current) {
       openedTasks.current = true;
-      router.replace('/(app)/(tabs)/tasks');
+      const first = launchTab(preferences.tabs);
+      router.replace(first === 'goals' ? '/(app)/(tabs)' : `/(app)/(tabs)/${first}`);
     }
-  }, [session, initializing, profile, profileLoading, profileError, inAuthGroup, isNameStep, router]);
+  }, [session, initializing, profile, profileLoading, profileError, preferencesReady, preferences.tabs, inAuthGroup, isNameStep, router]);
 
   // Signed in but the profile request failed (e.g. network) — offer a retry
   // instead of silently redirecting to complete-profile or hanging.

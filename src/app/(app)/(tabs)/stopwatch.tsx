@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { router } from 'expo-router';
 
 import { goalsForScope, TIMEFRAMES, type Goal } from '../../../core/logic';
 import { todayISO } from '../../../core/logic';
@@ -116,8 +115,6 @@ function StopwatchContent({ uid }: { uid: string | undefined }) {
 
   return <Screen edges={['top']}>
     <View style={{ paddingTop: spacing.md, gap: spacing.xs }}>
-      <Button title="‹ Приложения" size="md" variant="ghost" fullWidth={false}
-        onPress={() => router.navigate('/(app)/(tabs)/apps')} />
       <Text variant="title">Секундомер</Text>
       <Text variant="caption" tone="muted">Время сохраняется при закрытии приложения. Завершённые сессии синхронизируются между устройствами.</Text>
     </View>

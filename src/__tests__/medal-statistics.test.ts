@@ -46,8 +46,23 @@ test('weekly completions belong to the month of Sunday', () => {
     period('day', '2026-10-01', '2026-10-01', true),
   ];
   expect(monthlyStats(results, '2026-10-15')).toEqual({
-    daysCompleted: 1, daysPerfect: 1, daysTotal: 31,
+    daysCompleted: 1, daysPerfect: 1, daysTotal: 31, daysRest: 0,
     weeksCompleted: 1, weeksPerfect: 1, weeksTotal: 4,
+  });
+});
+
+test('an empty planned rest day pauses the daily streak without counting as a completion', () => {
+  const results: MedalPeriodResult[] = [
+    period('day', '2026-10-01', '2026-10-01', true),
+    { ...period('day', '2026-10-02', '2026-10-02', false), restDay: true },
+    period('day', '2026-10-03', '2026-10-03', true),
+    period('day', '2026-10-04', '2026-10-04', false),
+    { ...period('day', '2026-10-05', '2026-10-05', false), restDay: true },
+    period('day', '2026-10-06', '2026-10-06', true),
+  ];
+  expect(bestStreak(results, 'day')).toBe(2);
+  expect(monthlyStats(results, '2026-10-15')).toMatchObject({
+    daysCompleted: 3, daysRest: 2, daysTotal: 29,
   });
 });
 

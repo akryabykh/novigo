@@ -3,9 +3,10 @@ import { webcrypto } from 'node:crypto';
 import { QueryClient } from '@tanstack/react-query';
 
 import { qk } from '../core/query';
+import { addDays, todayISO } from '../core/logic';
 import { listGoalsByUser, listLogsByGoals, supabase } from '../core/data';
 import { mkGoal } from './fixtures';
-import { loadOfflineWorkspace, queueHorizon, queueTaskMove, resolveOfflineConflict, synchronize } from '../features/offline/sync';
+import { applyOperation, loadOfflineWorkspace, queueHorizon, queueRestDay, queueTaskMove, resolveOfflineConflict, synchronize } from '../features/offline/sync';
 import { readOffline } from '../features/offline/store';
 
 jest.mock('../core/data', () => ({
@@ -28,6 +29,40 @@ describe('phone offline queue', () => {
     jest.mocked(supabase.from).mockReset();
     jest.mocked(listGoalsByUser).mockReset();
     jest.mocked(listLogsByGoals).mockReset();
+  });
+  test('a rest day is visible offline and synchronizes before period finalization', async () => {
+    const restUid = '88888888-8888-4888-8888-888888888888';
+    const day = addDays(todayISO(), 3);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(qk.workspace(restUid), { goals: [], logs: [], restDays: [] });
+    await queueRestDay(restUid, day, true, 'Asia/Makassar', new Date().toISOString(), qc);
+    expect(qc.getQueryData<{ restDays: string[] }>(qk.workspace(restUid))?.restDays).toEqual([day]);
+    expect((await readOffline(restUid)).operations).toHaveLength(1);
+
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: true } });
+    jest.mocked(supabase.rpc).mockResolvedValue({ data: null, error: null } as never);
+    jest.mocked(listGoalsByUser).mockResolvedValue([]);
+    jest.mocked(listLogsByGoals).mockResolvedValue([]);
+    jest.mocked(supabase.from).mockImplementation((table) => ({ select: () => ({ eq: async () => ({
+      data: table === 'rest_days' ? [{ day }] : [], error: null,
+    }) }) } as never));
+    await synchronize(restUid, qc);
+    expect(supabase.rpc).toHaveBeenCalledWith('set_rest_day', expect.objectContaining({ p_day: day, p_enabled: true }));
+    expect((await readOffline(restUid)).operations).toEqual([]);
+    expect(qc.getQueryData<{ restDays: string[] }>(qk.workspace(restUid))?.restDays).toEqual([day]);
+    qc.clear();
+  });
+
+  test('creating a day task clears its planned rest marker in the local snapshot', () => {
+    const day = addDays(todayISO(), 3);
+    const next = applyOperation({ goals: [], logs: [], restDays: [day] }, {
+      id: 'op', type: 'horizon', userId: uid, kind: 'task', timeframe: 'day', refDate: day,
+      expectedRevision: 0, input: { updates: [], deletes: [], creates: [{
+        id: '99999999-9999-4999-8999-999999999999', kind: 'task', timeframe: 'day',
+        title: 'Новая задача', target: 1, weight: 100, startDate: day, endDate: day,
+      }] },
+    });
+    expect(next.restDays).toEqual([]);
   });
   test('a task move survives offline and replays once with both revision checks', async () => {
     const moveUid = '66666666-6666-4666-8666-666666666666';

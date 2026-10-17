@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Image, Platform, Switch, View } from 'react-native';
+import { Image, Platform, Pressable, Switch, View } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { deleteAvatar, getAvatarUrl, uploadAvatar } from '../../../core/data/avatar-repo';
 import { nameSchema, passwordSchema } from '../../../core/validation';
 import { useAuth } from '../../../features/auth/auth-provider';
 import { useProfile, useUpdateNames } from '../../../features/queries';
-import { useFeaturePreferences } from '../../../features/preferences/FeaturePreferences';
+import { FEATURE_TABS, FEATURE_TAB_LABELS, useFeaturePreferences, type FeatureTab } from '../../../features/preferences/FeaturePreferences';
 import { prepareAvatar } from '../../../features/profile/avatar-image';
 import { StatisticsContent } from '../../../features/statistics/StatisticsContent';
 import {
@@ -79,16 +79,30 @@ export default function ProfileScreen() {
   };
   const updateNames = useUpdateNames(uid);
   const { preferences, ready: preferencesReady, save: savePreferences } = useFeaturePreferences();
-  const [showGoalsOverride, setShowGoalsOverride] = useState<boolean | null>(null);
-  const showGoalsDraft = showGoalsOverride ?? preferences.showGoals;
+  const [tabsOverride, setTabsOverride] = useState<FeatureTab[] | null>(null);
+  const tabsDraft = tabsOverride ?? preferences.tabs;
+  const displayedTabs = [...tabsDraft, ...FEATURE_TABS.filter((tab) => !tabsDraft.includes(tab))];
   const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [preferencesMessage, setPreferencesMessage] = useState<string | null>(null);
+  const toggleTab = (tab: FeatureTab, enabled: boolean) => {
+    setPreferencesMessage(null);
+    setTabsOverride(enabled ? [...tabsDraft, tab] : tabsDraft.filter((item) => item !== tab));
+  };
+  const moveTab = (tab: FeatureTab, direction: -1 | 1) => {
+    const from = tabsDraft.indexOf(tab);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= tabsDraft.length) return;
+    const next = [...tabsDraft];
+    [next[from], next[to]] = [next[to], next[from]];
+    setPreferencesMessage(null);
+    setTabsOverride(next);
+  };
   const saveDisplay = async () => {
     setPreferencesSaving(true);
     setPreferencesMessage(null);
     try {
-      await savePreferences({ showGoals: showGoalsDraft });
-      setShowGoalsOverride(null);
+      await savePreferences({ tabs: tabsDraft });
+      setTabsOverride(null);
       setPreferencesMessage('Сохранено');
     } catch { setPreferencesMessage('Не удалось сохранить настройки'); }
     finally { setPreferencesSaving(false); }
@@ -239,13 +253,33 @@ export default function ProfileScreen() {
       </Card>
 
       {/* appearance */}
-      <Text variant="heading">Разделы приложения</Text>
+      <Text variant="heading">Нижняя панель</Text>
       <Card>
         <View style={{ gap: spacing.md }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <Text variant="label" style={{ flex: 1 }}>Показывать «Цели» в нижней панели</Text>
-            <Switch value={showGoalsDraft} onValueChange={setShowGoalsOverride} disabled={!preferencesReady || preferencesSaving} />
-          </View>
+          <Text variant="caption" tone="muted">Выбери от одного до трёх разделов. «Профиль» всегда остаётся в панели. Стрелки меняют порядок значков.</Text>
+          {displayedTabs.map((tab) => {
+            const index = tabsDraft.indexOf(tab);
+            const enabled = index >= 0;
+            return <View key={tab} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44 }}>
+              <Text variant="label" style={{ flex: 1 }}>{FEATURE_TAB_LABELS[tab]}</Text>
+              {enabled && <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Поднять ${FEATURE_TAB_LABELS[tab]}`}
+                  disabled={index === 0 || preferencesSaving} onPress={() => moveTab(tab, -1)}
+                  style={{ padding: spacing.xs, opacity: index === 0 ? 0.3 : 1 }}>
+                  <Text variant="label">↑</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Опустить ${FEATURE_TAB_LABELS[tab]}`}
+                  disabled={index === tabsDraft.length - 1 || preferencesSaving} onPress={() => moveTab(tab, 1)}
+                  style={{ padding: spacing.xs, opacity: index === tabsDraft.length - 1 ? 0.3 : 1 }}>
+                  <Text variant="label">↓</Text>
+                </Pressable>
+              </View>}
+              <Switch accessibilityLabel={FEATURE_TAB_LABELS[tab]} value={enabled}
+                onValueChange={(value) => toggleTab(tab, value)}
+                disabled={!preferencesReady || preferencesSaving || (enabled && tabsDraft.length === 1) || (!enabled && tabsDraft.length === 3)} />
+            </View>;
+          })}
+          <Text variant="caption" tone="muted">Значков снизу: {tabsDraft.length + 1} из 4</Text>
           {preferencesMessage ? <Text variant="caption">{preferencesMessage}</Text> : null}
           <Button title="Сохранить настройки" size="md" onPress={saveDisplay} loading={preferencesSaving} disabled={!preferencesReady} />
         </View>

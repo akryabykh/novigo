@@ -1,8 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import { listGoalsByUser, listLogsByGoals, supabase, type SaveHorizonInput } from '../../core/data';
+import { listRestDays, setRestDay } from '../../core/data/rest-days-repo';
 import type { Goal, GoalKind, Timeframe } from '../../core/domain';
-import { goalsForScope } from '../../core/logic';
+import { goalsForScope, todayISO } from '../../core/logic';
 import { qk } from '../../core/query';
 import type { Workspace } from '../queries';
 import { syncGamification } from '../gamification/sync';
@@ -21,6 +22,12 @@ function operationId(): string {
 }
 
 export function applyOperation(workspace: Workspace, op: OfflineOperation): Workspace {
+  if (op.type === 'rest') return {
+    ...workspace,
+    restDays: op.enabled
+      ? [...new Set([...(workspace.restDays ?? []), op.day])]
+      : (workspace.restDays ?? []).filter((day) => day !== op.day),
+  };
   if (op.type === 'logs') {
     const logs = [...workspace.logs];
     for (const change of op.changes) {
@@ -35,6 +42,7 @@ export function applyOperation(workspace: Workspace, op: OfflineOperation): Work
     goals: workspace.goals.map((g) => g.id === op.taskId
       ? { ...g, timeframe: op.to, startDate: op.startDate, endDate: op.endDate } : g),
     logs: workspace.logs.filter((log) => log.goalId !== op.taskId),
+    restDays: op.to === 'day' ? (workspace.restDays ?? []).filter((day) => day !== op.startDate) : workspace.restDays,
   };
   const deleted = new Set(op.input.deletes);
   const updates = new Map(op.input.updates.map((value) => [value.id, value]));
@@ -42,7 +50,10 @@ export function applyOperation(workspace: Workspace, op: OfflineOperation): Work
   for (const value of op.input.creates) {
     goals.push({ ...value, id: value.id!, userId: op.userId, kind: value.kind } as Goal);
   }
-  return { ...workspace, goals, logs: workspace.logs.filter((log) => !deleted.has(log.goalId)) };
+  const createdDays = op.kind === 'task' && op.timeframe === 'day'
+    ? new Set(op.input.creates.map((goal) => goal.startDate)) : new Set<string>();
+  return { ...workspace, goals, logs: workspace.logs.filter((log) => !deleted.has(log.goalId)),
+    restDays: (workspace.restDays ?? []).filter((day) => !createdDays.has(day)) };
 }
 
 export function overlayOperations(workspace: Workspace, operations: OfflineOperation[]): Workspace {
@@ -60,10 +71,10 @@ export async function fetchRemoteWorkspace(uid: string): Promise<Workspace> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const before = await readRevisions();
     const goals = await listGoalsByUser(uid);
-    const logs = await listLogsByGoals(goals.map((g) => g.id));
+    const [logs, restDays] = await Promise.all([listLogsByGoals(goals.map((g) => g.id)), listRestDays(uid)]);
     const after = await readRevisions();
     const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-    if ([...keys].every((key) => before[key] === after[key])) return { goals, logs, revisions: after };
+    if ([...keys].every((key) => before[key] === after[key])) return { goals, logs, restDays, revisions: after };
   }
   throw new Error('Цели изменились во время загрузки. Повтори попытку.');
 }
@@ -146,7 +157,29 @@ export async function queueLogs(uid: string, changes: StoredLog[], qc: QueryClie
   void synchronize(uid, qc);
 }
 
+export async function queueRestDay(uid: string, day: string, enabled: boolean,
+  timeZone: string, requestedAt: string, qc: QueryClient): Promise<void> {
+  if (day < todayISO()) throw new Error('Прошедший день уже закрыт');
+  const id = operationId();
+  const op = await updateOffline(uid, (record) => {
+    const base = record.workspace ?? qc.getQueryData<Workspace>(qk.workspace(uid));
+    if (!base) throw new Error('Сначала открой задачи с интернетом');
+    const current = overlayOperations(base, record.operations);
+    if (enabled && goalsForScope(current.goals.filter((goal) => goal.kind === 'task'), 'day', day).length) {
+      throw new Error('Для выходного день должен быть без задач');
+    }
+    const value: OfflineOperation = { id, type: 'rest', day, enabled, timeZone, requestedAt };
+    return [{ ...record, workspace: record.workspace ?? base, operations: [...record.operations, value], error: null }, value];
+  });
+  qc.setQueryData<Workspace>(qk.workspace(uid), (ws) => ws && applyOperation(ws, op));
+  void synchronize(uid, qc);
+}
+
 async function send(op: OfflineOperation): Promise<number | { source: number; destination: number } | null> {
+  if (op.type === 'rest') {
+    await setRestDay(op.day, op.enabled, op.timeZone, op.requestedAt, op.id);
+    return null;
+  }
   if (op.type === 'logs') {
     const { error } = await supabase.rpc('apply_offline_logs', { p_operation_id: op.id, p_changes: op.changes });
     if (error) throw error;
@@ -250,20 +283,23 @@ export async function resolveOfflineConflict(uid: string, choice: 'mine' | 'serv
       const blockedKeys = blocker.type === 'logs' ? new Set(blocker.changes.map((v) => `${v.goalId}|${v.date}`)) : new Set<string>();
       const operations = record.operations.filter((op) => {
         if (op.id === blocker.id) return false;
+        if (blocker.type === 'rest') return op.type !== 'rest' || op.day !== blocker.day;
         if (blocker.type === 'move') return op.type === 'move' ? op.taskId !== blocker.taskId
           : op.type === 'logs' ? !op.changes.some((v) => v.goalId === blocker.taskId)
-          : !op.input.updates.some((v) => v.id === blocker.taskId) && !op.input.deletes.includes(blocker.taskId);
+          : op.type === 'horizon' ? !op.input.updates.some((v) => v.id === blocker.taskId) && !op.input.deletes.includes(blocker.taskId)
+          : true;
         if (blocker.type === 'horizon') return op.type === 'horizon'
           ? revisionKey(op.kind, op.timeframe) !== revisionKey(blocker.kind, blocker.timeframe)
           : op.type === 'move'
             ? !(blocker.kind === 'task' && (op.from === blocker.timeframe || op.to === blocker.timeframe))
-            : !op.changes.some((v) => createdIds.has(v.goalId));
+            : op.type === 'logs' ? !op.changes.some((v) => createdIds.has(v.goalId)) : true;
         return op.type !== 'logs' || !op.changes.some((v) => blockedKeys.has(`${v.goalId}|${v.date}`));
       });
       return [{ ...record, workspace: remote, operations, conflictId: null, error: null }, undefined];
     }
     const operations = record.operations.map((op) => {
       if (op.id !== blocker.id) return op;
+      if (op.type === 'rest') throw new Error('День уже изменён на другом устройстве. Выбери «Взять с сервера».');
       if (op.type === 'move') {
         const current = remote.goals.find((g) => g.id === op.taskId && g.kind === 'task');
         if (!current) throw new Error('Задача удалена на другом устройстве. Выбери «Взять с сервера».');
