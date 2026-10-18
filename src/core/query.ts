@@ -22,4 +22,5 @@ export const qk = {
   workspace: (uid: string) => ['workspace', uid] as const,
   achievements: (uid: string) => ['achievements', uid] as const,
   medals: (uid: string) => ['medals', uid] as const,
+  family: (uid: string) => ['family', uid] as const,
 };

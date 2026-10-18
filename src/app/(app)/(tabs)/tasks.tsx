@@ -20,10 +20,21 @@ import { copyTaskIntoPeriod, openTaskCounts } from '../../../features/goals/task
 import { TaskRow } from '../../../features/goals/TaskRow';
 import { filterTasksByTag, TASK_TAGS } from '../../../features/goals/task-tags';
 import { useMoveTask, useSaveGoals, useSetRestDay, useWorkspace, type GoalUpdate } from '../../../features/queries';
-import { Button, Card, EmptyState, PlusIcon, Skeleton, Text } from '../../../ui/components';
+import { Button, Card, EmptyState, PlusIcon, SegmentedControl, Skeleton, Text } from '../../../ui/components';
 import { confirmAction } from '../../../ui/confirm';
 import { radius, spacing, timeframeColor, timeframeLabel } from '../../../ui/theme';
 import { useColors } from '../../../ui/theme-provider';
+import { FamilyTasksScreen } from '../../../features/family/FamilyTasksScreen';
+
+const TASK_SPACES = [{ value: 'personal', label: 'Личные' }, { value: 'family', label: 'Семья' }] as const;
+
+export default function TasksScreen() {
+  const [space, setSpace] = useState<'personal' | 'family'>('personal');
+  const switcher = <SegmentedControl segments={TASK_SPACES} value={space} onChange={setSpace} />;
+  return space === 'family'
+    ? <FamilyTasksScreen topContent={switcher} />
+    : <PersonalTasksScreen topContent={switcher} />;
+}
 
 // Tasks keep equal weights; on delete re-split evenly among the remaining ones of
 // the SAME active period (item 7) — never touches tasks of another period.
@@ -32,7 +43,7 @@ function equalizeTasks(siblings: Goal[]): GoalUpdate[] {
   return siblings.map((x, i) => ({ id: x.id, title: x.title, target: x.target, weight: w[i], endDate: x.endDate }));
 }
 
-export default function TasksScreen() {
+function PersonalTasksScreen({ topContent }: { topContent: React.ReactNode }) {
   const c = useColors();
   const { user } = useAuth();
   const uid = user?.id;
@@ -115,6 +126,7 @@ export default function TasksScreen() {
   return (
     <CalendarScaffold
       cal={cal}
+      topContent={topContent}
       navigationDisabled={editing || !!selectedTask || saveGoals.isPending || copyTask.isPending || moveTask.isPending || restDay.isPending}
       rings={rings}
       emptyRings={emptyRings}
