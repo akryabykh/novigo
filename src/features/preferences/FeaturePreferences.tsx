@@ -3,23 +3,30 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 import { useAuth } from '../auth/auth-provider';
 
-export type FeatureTab = 'tasks' | 'goals' | 'counter' | 'stopwatch';
-export const FEATURE_TABS: FeatureTab[] = ['tasks', 'goals', 'counter', 'stopwatch'];
+export type FeatureTab = 'tasks' | 'family' | 'goals' | 'counter' | 'stopwatch';
+export const FEATURE_TABS: FeatureTab[] = ['tasks', 'family', 'goals', 'counter', 'stopwatch'];
 export const FEATURE_TAB_LABELS: Record<FeatureTab, string> = {
-  tasks: 'Задачи', goals: 'Цели', counter: 'Счётчик', stopwatch: 'Секундомер',
+  tasks: 'Задачи', family: 'Семья', goals: 'Цели', counter: 'Счётчик', stopwatch: 'Секундомер',
 };
 
 type Preferences = { tabs: FeatureTab[] };
-const DEFAULTS: Preferences = { tabs: ['tasks', 'counter'] };
+const DEFAULTS: Preferences = { tabs: ['tasks', 'family', 'counter'] };
+
+function withFamilyTab(tabs: FeatureTab[]): FeatureTab[] {
+  // Only migrate the old default. A customized layout belongs to the user.
+  return tabs.length === 2 && tabs[0] === 'tasks' && tabs[1] === 'counter'
+    ? DEFAULTS.tabs
+    : tabs;
+}
 
 export function parseFeaturePreferences(raw: string | null): Preferences {
   if (!raw) return DEFAULTS;
   try {
-    const stored = JSON.parse(raw) as { tabs?: unknown; showGoals?: unknown };
+    const stored = JSON.parse(raw) as { tabs?: unknown; showGoals?: unknown; version?: unknown };
     if (Array.isArray(stored.tabs)) {
       const tabs = stored.tabs.filter((tab, index, all): tab is FeatureTab =>
         FEATURE_TABS.includes(tab as FeatureTab) && all.indexOf(tab) === index).slice(0, 3);
-      if (tabs.length) return { tabs };
+      if (tabs.length) return { tabs: stored.version === 2 ? tabs : withFamilyTab(tabs) };
     }
     // Migrate the previous Goals toggle without hiding the existing tools.
     return { tabs: stored.showGoals === true ? ['tasks', 'goals', 'counter'] : DEFAULTS.tabs };
@@ -62,7 +69,7 @@ export function FeaturePreferencesProvider({ children }: { children: ReactNode }
       throw new Error('Выбери от одного до трёх разделов');
     }
     const merged = { tabs: [...tabs] };
-    await AsyncStorage.setItem(`novigo.preferences.${uid}`, JSON.stringify(merged));
+    await AsyncStorage.setItem(`novigo.preferences.${uid}`, JSON.stringify({ ...merged, version: 2 }));
     setLoaded({ uid, preferences: merged });
   };
 

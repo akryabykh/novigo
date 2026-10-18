@@ -31,7 +31,6 @@ export function CalendarScaffold({
   isRefetching,
   saveError,
   onDismissError,
-  topContent,
   children,
 }: {
   cal: Calendar;
@@ -47,7 +46,6 @@ export function CalendarScaffold({
   isRefetching: boolean;
   saveError?: string | null;
   onDismissError?: () => void;
-  topContent?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const c = useColors();
@@ -75,7 +73,6 @@ export function CalendarScaffold({
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={c.accent} />}>
         <View style={{ width: '100%', maxWidth: 560, flexGrow: 1, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
-          {topContent}
           {isError ? (
             <EmptyState
               emoji="⚠️"

@@ -19,7 +19,7 @@ test('bottom tabs stay between two and four icons and restore their saved order'
   function Harness() { settings = useFeaturePreferences(); return null; }
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<FeaturePreferencesProvider><Harness /></FeaturePreferencesProvider>); });
-  expect(settings.preferences.tabs).toEqual(['tasks', 'counter']);
+  expect(settings.preferences.tabs).toEqual(['tasks', 'family', 'counter']);
   await act(async () => { await settings.save({ tabs: ['counter', 'tasks', 'goals'] }); });
   expect(settings.preferences.tabs).toEqual(['counter', 'tasks', 'goals']);
   await act(async () => { tree.unmount(); });
@@ -45,5 +45,12 @@ test('one tool plus Profile is valid; empty or four tools cannot be saved', asyn
 
 test('previous Goals switch is migrated into the new tab selection', () => {
   expect(parseFeaturePreferences('{"showGoals":true}').tabs).toEqual(['tasks', 'goals', 'counter']);
-  expect(parseFeaturePreferences('{"showGoals":false}').tabs).toEqual(['tasks', 'counter']);
+  expect(parseFeaturePreferences('{"showGoals":false}').tabs).toEqual(['tasks', 'family', 'counter']);
+});
+
+test('family appears in the old default layout, while customized choices are kept', () => {
+  expect(parseFeaturePreferences('{"tabs":["tasks","counter"]}').tabs).toEqual(['tasks', 'family', 'counter']);
+  expect(parseFeaturePreferences('{"tabs":["tasks","goals","counter"]}').tabs).toEqual(['tasks', 'goals', 'counter']);
+  expect(parseFeaturePreferences('{"tabs":["counter"]}').tabs).toEqual(['counter']);
+  expect(parseFeaturePreferences('{"version":2,"tabs":["counter"]}').tabs).toEqual(['counter']);
 });

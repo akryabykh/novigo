@@ -28,8 +28,8 @@ jest.mock('../features/queries', () => ({
 }));
 jest.mock('../features/preferences/FeaturePreferences', () => ({
   useFeaturePreferences: () => ({ preferences: { tabs: ['tasks', 'counter'] }, ready: true, save: mockSavePreferences }),
-  FEATURE_TABS: ['tasks', 'goals', 'counter', 'stopwatch'],
-  FEATURE_TAB_LABELS: { tasks: 'Задачи', goals: 'Цели', counter: 'Счётчик', stopwatch: 'Секундомер' },
+  FEATURE_TABS: ['tasks', 'family', 'goals', 'counter', 'stopwatch'],
+  FEATURE_TAB_LABELS: { tasks: 'Задачи', family: 'Семья', goals: 'Цели', counter: 'Счётчик', stopwatch: 'Секундомер' },
 }));
 jest.mock('../features/statistics/StatisticsContent', () => ({ StatisticsContent: () => null }));
 jest.mock('../core/data/avatar-repo', () => ({ getAvatarUrl: jest.fn(async () => null),
