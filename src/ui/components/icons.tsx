@@ -80,6 +80,17 @@ export function UserIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconPro
   );
 }
 
+export function FamilyIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
+  return (
+    <Svg {...base(size)} fill="none">
+      <Circle cx="8" cy="8" r="3" stroke={color} strokeWidth={strokeWidth} />
+      <Circle cx="17" cy="9" r="2.5" stroke={color} strokeWidth={strokeWidth} />
+      <Path d="M2.5 20c0-3.2 2.2-5 5.5-5s5.5 1.8 5.5 5M14.5 15.5c.7-.4 1.5-.5 2.5-.5 2.9 0 4.5 1.8 4.5 5"
+        stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function PlusIcon({ size = 24, color = '#000', strokeWidth = 2 }: IconProps) {
   return (
     <Svg {...base(size)} fill="none">

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { periodRange } from '../../core/logic';
 import { qk } from '../../core/query';
-import { Button, Card, CheckIcon, EmptyState, Input, Skeleton, Text, TrashIcon } from '../../ui/components';
+import { Button, Card, CheckIcon, EmptyState, Input, PlusIcon, Skeleton, Text, TrashIcon } from '../../ui/components';
 import { confirmAction } from '../../ui/confirm';
 import { radius, spacing, timeframeColor, timeframeLabel, typography } from '../../ui/theme';
 import { useColors } from '../../ui/theme-provider';
@@ -16,7 +16,7 @@ import { createFamily, joinFamily, leaveFamily, type FamilyTask } from './family
 import { familyOpenCounts, familyRings, familyTasksForPeriod } from './family-logic';
 import { clearFamilyCache, discardFirstFamilyOperation, loadFamilyView, queueFamilyOperation } from './family-sync';
 
-export function FamilyTasksScreen({ topContent }: { topContent: React.ReactNode }) {
+export function FamilyTasksScreen() {
   const c = useColors();
   const { user } = useAuth();
   const uid = user?.id;
@@ -25,6 +25,7 @@ export function FamilyTasksScreen({ topContent }: { topContent: React.ReactNode 
   const { today, refDate, scope } = cal;
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
+  const [adding, setAdding] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
@@ -65,7 +66,7 @@ export function FamilyTasksScreen({ topContent }: { topContent: React.ReactNode 
   const taskMutation = useMutation({
     networkMode: 'always',
     mutationFn: (input: Parameters<typeof queueFamilyOperation>[1]) => queueFamilyOperation(uid!, input, qc),
-    onSuccess: () => { setTitle(''); setLocalError(null); },
+    onSuccess: () => setLocalError(null),
   });
 
   useEffect(() => {
@@ -85,8 +86,11 @@ export function FamilyTasksScreen({ topContent }: { topContent: React.ReactNode 
   const addTask = () => {
     if (!family) return;
     if (!title.trim()) { setLocalError('Напиши название задачи'); return; }
-    taskMutation.mutate({ familyId: family.id, action: 'create', title, timeframe: scope, date: refDate });
+    taskMutation.mutate({ familyId: family.id, action: 'create', title, timeframe: scope, date: refDate }, {
+      onSuccess: () => { setTitle(''); setAdding(false); },
+    });
   };
+  const cancelAdd = () => { setAdding(false); setTitle(''); setLocalError(null); taskMutation.reset(); };
   const toggle = (task: FamilyTask) => {
     if (!family || !canToggle) return;
     taskMutation.mutate({ familyId: family.id, taskId: task.id, action: 'toggle', done: !task.done });
@@ -120,7 +124,6 @@ export function FamilyTasksScreen({ topContent }: { topContent: React.ReactNode 
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView contentContainerStyle={{ alignItems: 'center', flexGrow: 1, paddingBottom: spacing['2xl'] }}>
         <View style={{ width: '100%', maxWidth: 560, paddingHorizontal: spacing.xl, gap: spacing.lg }}>
-          {topContent}
           {familyQuery.isLoading ? <Skeleton height={180} rounded={radius.lg} /> : familyQuery.isError ? (
             <EmptyState emoji="⚠️" title="Не удалось загрузить семью"
               subtitle="Проверь интернет и повтори попытку" ctaTitle="Повторить"
@@ -145,22 +148,32 @@ export function FamilyTasksScreen({ topContent }: { topContent: React.ReactNode 
   if (!family) return setupContent;
 
   return <CalendarScaffold
-    cal={cal} topContent={topContent}
+    cal={cal} navigationDisabled={adding || taskMutation.isPending}
     rings={rings} emptyRings={emptyRings} pendingTaskCounts={counts}
     daysWithProgress={daysWithProgress}
-    onSelectScope={cal.setScope}
+    onSelectScope={(tf) => { cal.setScope(tf); cancelAdd(); }}
     isError={familyQuery.isError && !familyQuery.data}
     refetch={() => void familyQuery.refetch()}
     isRefetching={familyQuery.isRefetching}
     saveError={taskMutation.isError ? taskMutation.error.message : localError}
     onDismissError={() => { taskMutation.reset(); setLocalError(null); }}>
     <View style={{ gap: spacing.sm }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text variant="heading">Семейные задачи</Text>
-        <Pressable onPress={() => setShowInvite((value) => !value)} hitSlop={8}>
-          <Text variant="label" tone="accent">{family.memberCount}/2 · Код</Text>
-        </Pressable>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: timeframeColor[scope] }} />
+        <Text variant="heading" style={{ flex: 1 }}>Семья · {timeframeLabel[scope].toLowerCase()}</Text>
+        {editable && !adding ? <Pressable accessibilityRole="button" accessibilityLabel="Добавить семейную задачу"
+          onPress={() => { taskMutation.reset(); setLocalError(null); setAdding(true); }} hitSlop={6}
+          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4,
+            paddingHorizontal: spacing.md, height: 34, borderRadius: radius.md,
+            backgroundColor: c.surfaceAlt, opacity: pressed ? 0.7 : 1 })}>
+          <PlusIcon size={16} color={c.accent} strokeWidth={2.2} />
+          <Text variant="label" tone="accent">Добавить</Text>
+        </Pressable> : null}
       </View>
+      <Pressable onPress={() => setShowInvite((value) => !value)} hitSlop={8}
+        style={{ alignSelf: 'flex-start', paddingVertical: spacing.xs }}>
+        <Text variant="caption" tone="accent">{family.memberCount}/2 участника · {showInvite ? 'Скрыть приглашение' : 'Код приглашения'}</Text>
+      </Pressable>
       {showInvite ? <Card style={{ gap: spacing.sm }}>
         <Text variant="label">Пригласи партнёра</Text>
         <Text variant="heading" selectable>{family.inviteCode}</Text>
@@ -180,13 +193,22 @@ export function FamilyTasksScreen({ topContent }: { topContent: React.ReactNode 
         <Button title="Отменить неотправленную правку" variant="secondary" size="md"
           onPress={() => void discardFailed()} />
       ) : null}
-      {editable ? <Card style={{ gap: spacing.sm }}>
-        <Input label={`Новая задача · ${timeframeLabel[scope].toLowerCase()}`} value={title} onChangeText={(value) => { setTitle(value); setLocalError(null); }}
-          placeholder="Что нужно сделать?" maxLength={200} onSubmitEditing={addTask} />
-        <Button title="Добавить задачу" size="md" loading={taskMutation.isPending} onPress={addTask} />
-      </Card> : <Text variant="caption" tone="muted">Этот период уже закрыт. Новые задачи можно добавить в текущий период.</Text>}
+      {adding ? <View style={{ gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg,
+        borderWidth: 1, borderColor: c.border, backgroundColor: c.surface }}>
+        <Input autoFocus value={title} onChangeText={(value) => { setTitle(value); setLocalError(null); }}
+          placeholder="Новая семейная задача" maxLength={200} returnKeyType="done" onSubmitEditing={addTask} />
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Button title="Отмена" variant="secondary" size="md" fullWidth={false} style={{ flex: 1 }} onPress={cancelAdd} />
+          <Button title="Сохранить" size="md" fullWidth={false} style={{ flex: 1 }}
+            loading={taskMutation.isPending} onPress={addTask} />
+        </View>
+      </View> : null}
+      {!editable ? <Text variant="caption" tone="muted">Этот период закрыт. Новую задачу можно добавить в текущий период.</Text> : null}
     </View>
-    {ordered.length === 0 ? <Text tone="muted">На этот период общих задач пока нет.</Text> : (
+    {ordered.length === 0 ? adding ? null : editable ? <EmptyState emoji="✅" title="Общих задач пока нет"
+      subtitle="Добавь первую задачу на выбранный период — её увидите вы оба."
+      ctaTitle="Добавить задачу" onCta={() => setAdding(true)} />
+      : <Text tone="muted">На этот период общих задач нет.</Text> : (
       <View style={{ gap: spacing.md }}>
         {ordered.map((task) => <Card key={task.id}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
